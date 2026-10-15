@@ -1,5 +1,35 @@
 # ScamShield-AI
-AI-powered scam message and phishing URL detection
+
+AI-powered scam message and phishing URL detection — Hackathon Day 1 release.
+
+## Project Status (Day 1)
+
+| Area | Status |
+|---|---|
+| Backend (FastAPI, rule-based engine) | ✅ Complete |
+| Frontend (React + TypeScript + Vite) | ✅ Complete |
+| Backend unit tests | ✅ 22/22 passing |
+| Frontend build (`tsc -b && vite build`) | ✅ Passes |
+| Frontend lint (`eslint .`) | ✅ Passes |
+| Backend deployed (Render) | ✅ `https://scamshield-ai-x4ym.onrender.com` |
+| Frontend deployed (Vercel) | ✅ `https://scamshield-ngfa0g1xm-shouryadmc5-7692.vercel.app` |
+
+### Live Smoke Test Results (Day 1)
+
+Verified against deployed backend:
+
+| Input | Score | Level |
+|---|---|---|
+| Prize winner scam with shortener URL | 45 / 100 | **Medium** |
+| Normal everyday message | 0 / 100 | **Low** |
+
+### Known Limitations
+
+- **Ambiguous shortened URLs:** A URL shortener (e.g. `https://bit.ly/...`) submitted alone without accompanying scam-lure text scores 20 — below the Medium threshold of 30. This is a deliberate trade-off: raising the shortener weight would produce false positives on legitimate uses (e.g. shared news links). A future fix requires text context or a URL-expand service.
+- **Synthetic benchmark only:** The evaluation dataset (`backend/evaluation_dataset.json`) contains 20 handcrafted synthetic examples for regression tracking. The 95% accuracy / 0.9524 F1 figures reflect only this small dataset and are **not evidence of real-world detection performance**. Do not cite them as production-accuracy metrics.
+- **Rule-based engine:** Detection is deterministic heuristics (no ML model). New scam patterns not covered by existing rules will be missed until rules are updated.
+
+---
 
 ## Backend Quickstart
 
@@ -7,7 +37,7 @@ AI-powered scam message and phishing URL detection
    - Windows (PowerShell): `.\backend\.venv\Scripts\Activate.ps1`
    - Linux/macOS: `source backend/.venv/bin/activate`
 
-2. **Install dependencies (if not already installed):**
+2. **Install dependencies (first time only):**
    ```bash
    pip install -r backend/requirements.txt
    ```
