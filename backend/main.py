@@ -24,13 +24,17 @@ default_dev_origins = [
 ]
 env_origins = os.getenv("ALLOWED_ORIGINS", os.getenv("FRONTEND_URL", "")).strip()
 if env_origins:
-    allowed_origins = [o.strip() for o in env_origins.split(",") if o.strip()]
+    allowed_origins = [o.strip().rstrip("/") for o in env_origins.split(",") if o.strip()]
 else:
     allowed_origins = default_dev_origins
+
+# Always allow Vercel production and preview deployments (*.vercel.app) securely via regex
+vercel_origin_regex = r"^https:\/\/.*\.vercel\.app$"
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
+    allow_origin_regex=vercel_origin_regex,
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],

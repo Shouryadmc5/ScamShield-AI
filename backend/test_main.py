@@ -146,6 +146,13 @@ class TestScamShieldRuleAudit(unittest.TestCase):
         res = health()
         self.assertEqual(res.get("status"), "ok")
 
+    def test_cors_vercel_regex_match(self):
+        from main import vercel_origin_regex
+        import re
+        self.assertTrue(bool(re.match(vercel_origin_regex, "https://scamshield-ngfa0g1xm-shouryadmc5-7692.vercel.app")))
+        self.assertTrue(bool(re.match(vercel_origin_regex, "https://scamshield-ai.vercel.app")))
+        self.assertFalse(bool(re.match(vercel_origin_regex, "http://malicious-vercel.app.fake.com")))
+
 
 class TestBenchmarkEvaluator(unittest.TestCase):
     def test_load_valid_benchmark_dataset(self):
