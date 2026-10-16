@@ -70,6 +70,9 @@ LEGITIMATE_BRAND_DOMAINS = {
     "coinbase": {"coinbase.com"},
     "whatsapp": {"whatsapp.com"},
     "telegram": {"telegram.org", "t.me"},
+    "citibank": {"citi.com", "citibank.com"},
+    "venmo": {"venmo.com"},
+    "zelle": {"zellepay.com"},
 }
 
 URGENCY_PATTERNS = [
@@ -84,26 +87,53 @@ URGENCY_PATTERNS = [
 ]
 
 CREDENTIAL_PATTERNS = [
-    (r"\bverify your (account|identity|password|pin|credentials)\b", "Solicits account or password verification"),
-    (r"\bconfirm your (password|pin|security code|identity)\b", "Requests sensitive confirmation of password/PIN"),
-    (r"\benter your (ssn|social security|credentials|password)\b", "Requests personal SSN or login credentials"),
-    (r"\bupdate your (login|billing|credentials|information)\b", "Requests credential or billing update"),
+    (r"\bverify your (account|identity|password|pin|credentials|banking|card|profile)\b", "Solicits account or password verification"),
+    (r"\bconfirm your (password|pin|security code|identity|account details|card details)\b", "Requests sensitive confirmation of password/PIN"),
+    (r"\benter your (ssn|social security|credentials|password|pin)\b", "Requests personal SSN or login credentials"),
+    (r"\bupdate your (login|billing|credentials|information|address|security)\b", "Requests credential, billing, or address update"),
     (r"\b(one-time passcode|one-time password|otp)\b", "Requests one-time verification passcode (OTP)"),
     (r"\bsecurity code\b", "Mentions security code or PIN submission"),
     (r"\blogin credentials\b", "Explicitly asks for login credentials"),
+    (r"\b(unlock|reactivate|restore) (your )?(account|access)\b", "Urges action to unlock or restore access"),
 ]
 
-FINANCIAL_PATTERNS = [
+PRIZE_PATTERNS = [
+    (r"\bclaim (your )?(prize|reward|refund|lottery|payout|winnings)\b", "Lures with prizes, rewards, or lottery claims"),
+    (r"\byou('ve| have| are) (won|selected as (a |the )?winner)\b", "Claims recipient has won money or a sweepstakes"),
+    (r"\b(winner notification|selected winner|sweepstakes winner|lottery winner)\b", "Claims recipient is a sweepstakes/lottery winner"),
+    (r"\bunclaimed (funds|money|reward|prize)\b", "Claims unclaimed funds or rewards are awaiting collection"),
+    (r"\brefund of \$?\d+\b", "Promises unsolicited refunds"),
+]
+
+SUSPICIOUS_PAYMENT_PATTERNS = [
     (r"\bwire transfer\b", "Requests payment via wire transfer"),
     (r"\bgift card(s)?\b", "Requests non-traceable gift card payment"),
     (r"\b(crypto|cryptocurrency|bitcoin|ethereum|usdt)\b", "References cryptocurrency transfer"),
-    (r"\bclaim your (prize|reward|refund|lottery)\b", "Lures with prizes, rewards, or lottery claims"),
-    (r"\byou('ve| have) won\b", "Claims recipient has won money or a sweepstakes"),
-    (r"\brefund of \$?\d+\b", "Promises unsolicited refunds"),
-    (r"\bunclaimed (funds|money|reward)\b", "Claims unclaimed funds are awaiting collection"),
-    (r"\bfee to release\b", "Demands advance fee before releasing funds"),
-    (r"\bpayment (overdue|declined|pending)\b", "Claims urgent overdue or pending payment issue"),
+    (r"\b(processing |advance |release |clearance )?fee to (release|claim|collect)\b", "Demands advance fee before releasing funds"),
+    (r"\b(processing|release|clearance) fee\b", "Demands processing or release fee"),
+    (r"\b(send|pay|transfer) (via |through )?(zelle|venmo|cash ?app)\b", "Directs payment through peer-to-peer payment apps"),
 ]
+
+BILLING_PATTERNS = [
+    (r"\bpayment (overdue|declined|pending|failed)\b", "Claims urgent overdue or pending payment issue"),
+    (r"\b(unauthorized|fraudulent) (transaction|charge|payment|activity)\b", "Claims unauthorized charge or transaction alert"),
+    (r"\b(invoice|subscription|renewal) (overdue|renewed|auto-renewal|charged)\b", "References unexpected invoice or subscription charge"),
+]
+
+INSTITUTION_PATTERNS = [
+    (r"\b(chase|bank of america|wells fargo|citibank|citi bank|paypal|venmo|zelle)\b", "financial institution or payment service"),
+    (r"\b(irs|internal revenue service)\b", "tax authority"),
+    (r"\b(usps|fedex|dhl|ups)\b", "delivery service"),
+    (r"\b(netflix|amazon|apple|microsoft|geek squad)\b", "major service provider"),
+]
+
+FINANCIAL_PATTERNS = PRIZE_PATTERNS + SUSPICIOUS_PAYMENT_PATTERNS + BILLING_PATTERNS
+
+SENSITIVE_PATH_KEYWORDS = {
+    "login", "signin", "verify", "verification", "security", "secure",
+    "account", "password", "credential", "credentials", "banking",
+    "wallet", "auth", "confirm", "update-account", "update-billing"
+}
 
 SUSPICIOUS_SCHEMES = {"data", "javascript", "file", "vbscript", "blob"}
 
@@ -216,6 +246,26 @@ def extract_base_domain(host: str) -> str:
     return host
 
 
+def is_brand_in_host(host: str, brand: str) -> bool:
+    """Checks whether brand is referenced as a domain label or concatenated with action words."""
+    action_suffixes = "login|signin|verify|security|alert|update|support|service|account|online|billing|auth|refund"
+    if re.search(r"(?:^|[.\-_])" + re.escape(brand) + r"(?:[.\-_]|$)", host):
+        return True
+    if re.search(r"(?:^|[.\-_])" + re.escape(brand) + r"(?:" + action_suffixes + r")", host):
+        return True
+    return False
+
+
+def is_brand_in_path(path: str, brand: str) -> bool:
+    """Checks whether brand is referenced in URL path as a distinct segment or token."""
+    action_suffixes = "login|signin|verify|security|alert|update|support|service|account|online|billing|auth|refund"
+    if re.search(r"(?:^|[/.\-_])" + re.escape(brand) + r"(?:[/.\-_]|$)", path):
+        return True
+    if re.search(r"(?:^|[/.\-_])" + re.escape(brand) + r"(?:" + action_suffixes + r")(?:[/.\-_]|$)", path):
+        return True
+    return False
+
+
 def evaluate_rules(message: Optional[str], url: Optional[str]):
     """
     Deterministic rule-based heuristics evaluating suspicious lures and URL properties.
@@ -240,17 +290,25 @@ def evaluate_rules(message: Optional[str], url: Optional[str]):
     # 1. MESSAGE TEXT ANALYSIS
     # -------------------------------------------------------------
     has_urgency = False
+    has_account_threat = False
     has_credential = False
-    has_financial = False
+    has_prize = False
+    has_payment_demand = False
+    has_billing_alert = False
+    has_institution_lure = False
 
     if text:
         text_lower = text.lower()
 
-        # Check Urgency
+        # Check Urgency & Account threats
         for pattern, desc in URGENCY_PATTERNS:
             if re.search(pattern, text_lower):
                 has_urgency = True
-                indicator_set.add("Creates artificial urgency or threatens account closure")
+                if re.search(r"\baccount (suspended|locked|terminated|disabled|restricted|frozen)\b|\bfinal notice\b", pattern):
+                    has_account_threat = True
+                    indicator_set.add("Threatens account closure, suspension, or final action")
+                else:
+                    indicator_set.add("Uses artificial urgency or tight deadlines")
                 break
 
         # Check Credentials Harvesting
@@ -260,12 +318,36 @@ def evaluate_rules(message: Optional[str], url: Optional[str]):
                 indicator_set.add("Solicits confidential verification codes, passwords, or credentials")
                 break
 
-        # Check Financial lures
-        for pattern, desc in FINANCIAL_PATTERNS:
+        # Check Prize lures
+        for pattern, desc in PRIZE_PATTERNS:
             if re.search(pattern, text_lower):
-                has_financial = True
-                indicator_set.add("References prizes, unusual refunds, wire transfers, or cryptocurrency payments")
+                has_prize = True
+                indicator_set.add("References prizes, lottery winnings, or unsolicited reward claims")
                 break
+
+        # Check Suspicious Payment Demands
+        for pattern, desc in SUSPICIOUS_PAYMENT_PATTERNS:
+            if re.search(pattern, text_lower):
+                has_payment_demand = True
+                indicator_set.add("Demands payment via wire transfer, gift card, cryptocurrency, or advance fee")
+                break
+
+        # Check Billing / Fake Invoice Alerts
+        for pattern, desc in BILLING_PATTERNS:
+            if re.search(pattern, text_lower):
+                has_billing_alert = True
+                indicator_set.add("References overdue billing, unauthorized transactions, or fake invoice charges")
+                break
+
+        # Check Institution Impersonation in text
+        for pattern, brand_type in INSTITUTION_PATTERNS:
+            m = re.search(pattern, text_lower)
+            if m:
+                if has_credential or has_urgency or has_account_threat or has_billing_alert or has_payment_demand:
+                    has_institution_lure = True
+                    matched_brand = m.group(1).title()
+                    indicator_set.add(f"Impersonates {brand_type} ('{matched_brand}') in lure or billing context")
+                    break
 
         # Excessive uppercase characters (High pressure)
         words = text.split()
@@ -276,16 +358,34 @@ def evaluate_rules(message: Optional[str], url: Optional[str]):
                 indicator_set.add("Contains aggressive capitalization commonly used in high-pressure lures")
 
         # Context-aware scoring: Credential request + Urgency = High probability phishing
-        if has_credential and has_urgency:
+        if has_credential and (has_urgency or has_account_threat):
             score += 65
         elif has_credential:
             score += 40
+        elif has_account_threat:
+            score += 35
         elif has_urgency:
-            # Urgency alone on ordinary messages is only a mild indicator (e.g., "Urgent: we need to leave now")
             score += 15
 
-        if has_financial:
+        # Compound financial & prize scam scoring
+        if has_prize and has_payment_demand:
+            score += 60
+            indicator_set.add("Advance-fee fraud pattern: combines prize claim with upfront payment demand")
+        elif has_prize:
             score += 30
+        elif has_payment_demand:
+            score += 35
+
+        # Billing alerts / invoice fraud
+        if has_billing_alert:
+            if has_urgency or has_account_threat or has_payment_demand:
+                score += 40
+            else:
+                score += 25
+
+        # Institution lure compounding
+        if has_institution_lure:
+            score += 15
 
     # -------------------------------------------------------------
     # 2. URL INSPECTION (Deterministic & Passive)
@@ -335,8 +435,9 @@ def evaluate_rules(message: Optional[str], url: Optional[str]):
             indicator_set.add(f"URL uses raw IP address ('{host}') instead of a recognized domain")
 
         if host and not host_already_scored:
+            is_shortener = host in KNOWN_SHORTENERS
             # Link shorteners
-            if host in KNOWN_SHORTENERS:
+            if is_shortener:
                 score += 20
                 indicator_set.add(f"Uses link shortener ({host}) concealing true destination")
 
@@ -352,17 +453,32 @@ def evaluate_rules(message: Optional[str], url: Optional[str]):
                 score += 15
                 indicator_set.add("Unusually deep subdomain hierarchy often used to camouflage domain names")
 
+            # Check if URL path targets sensitive authentication/account actions
+            path_tokens = set(re.split(r"[/.\-_?=&%]+", path.lower()))
+            has_sensitive_path = bool(path_tokens.intersection(SENSITIVE_PATH_KEYWORDS)) or bool(
+                re.search(
+                    r"(?:^|[/.\-_])(secure-account|account-login|account-verify|update-account|update-billing|verify-identity|claim-prize|prize-reward)(?:[/.\-_]|$)",
+                    path.lower(),
+                )
+            )
+
+            # If a link shortener conceals a destination while its path points to sensitive targets
+            if is_shortener and has_sensitive_path:
+                score += 20
+                clean_path = path.strip("/")
+                indicator_set.add(f"Shortened URL conceals sensitive authentication or account path ('{clean_path}')")
+
             # Brand Impersonation Checks
             base_domain = extract_base_domain(host)
-            for brand, legit_domains in LEGITIMATE_BRAND_DOMAINS.items():
+            for brand, legit_domains in sorted(LEGITIMATE_BRAND_DOMAINS.items()):
                 # Check if host is a legitimate domain for this brand
                 is_legit = any(host == ld or host.endswith(f".{ld}") for ld in legit_domains)
                 if is_legit:
                     continue
 
                 # Brand in domain stem or subdomains on non-legitimate domain
-                brand_in_host = brand in host
-                brand_in_path = brand in path
+                brand_in_host = is_brand_in_host(host, brand)
+                brand_in_path = is_brand_in_path(path, brand)
 
                 if brand_in_host:
                     score += 35

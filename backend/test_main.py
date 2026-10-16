@@ -154,6 +154,80 @@ class TestScamShieldRuleAudit(unittest.TestCase):
         self.assertFalse(bool(re.match(vercel_origin_regex, "http://malicious-vercel.app.fake.com")))
 
 
+class TestDetectorImprovements(unittest.TestCase):
+    # -------------------------------------------------------------
+    # Focused tests for engine improvements & edge cases
+    # -------------------------------------------------------------
+    def test_shortened_url_with_sensitive_path_escalates_score(self):
+        result = evaluate_rules(None, "https://bit.ly/secure-account-login")
+        self.assertGreaterEqual(result["risk_score"], 30)
+        self.assertEqual(result["risk_level"], "Medium")
+        combined_inds = " ".join(result["indicators"]).lower()
+        self.assertTrue("shortener" in combined_inds)
+        self.assertTrue("sensitive" in combined_inds or "authentication" in combined_inds)
+
+    def test_benign_shortened_url_remains_low_risk(self):
+        result = evaluate_rules(None, "https://bit.ly/grocery-list-sunday")
+        self.assertEqual(result["risk_level"], "Low")
+        self.assertLess(result["risk_score"], 30)
+        self.assertFalse(any("sensitive" in ind.lower() for ind in result["indicators"]))
+
+    def test_brand_substring_does_not_trigger_false_positive(self):
+        benign_urls = [
+            "https://first-bank.com",
+            "https://purchase-online.com",
+            "https://pineapple.com",
+            "https://snapple.com",
+            "https://example.com/first-post",
+        ]
+        for u in benign_urls:
+            res = evaluate_rules(None, u)
+            self.assertEqual(res["risk_level"], "Low", f"Failed for {u}")
+            self.assertEqual(res["risk_score"], 0, f"Expected 0 score for {u}, got {res['risk_score']}")
+            self.assertFalse(any("spoofing" in ind.lower() or "brand lure" in ind.lower() for ind in res["indicators"]))
+
+    def test_compound_advance_fee_prize_fraud(self):
+        msg = "Congratulations! You have won $10,000 in our international lottery. Wire transfer a $50 processing fee to claim your prize."
+        result = evaluate_rules(msg, None)
+        self.assertGreaterEqual(result["risk_score"], 60)
+        self.assertEqual(result["risk_level"], "High")
+        combined_inds = " ".join(result["indicators"]).lower()
+        self.assertTrue("advance-fee" in combined_inds or "wire transfer" in combined_inds)
+
+    def test_fake_invoice_and_billing_fraud(self):
+        msg = "Geek Squad: Invoice #9823 for $399 auto-renewal charged. Call immediately if unauthorized transaction."
+        result = evaluate_rules(msg, None)
+        self.assertGreaterEqual(result["risk_score"], 40)
+        self.assertIn(result["risk_level"], ["Medium", "High"])
+        combined_inds = " ".join(result["indicators"]).lower()
+        self.assertTrue("invoice" in combined_inds or "unauthorized" in combined_inds or "billing" in combined_inds)
+
+    def test_benign_messages_with_sensitive_words_remain_low(self):
+        benign_messages = [
+            "I went to the bank today to deposit money.",
+            "Thanks for the payment for dinner.",
+            "The high school science prize was awarded yesterday.",
+            "The bank approved our mortgage application.",
+            "Payment received for your electric bill. Thank you.",
+        ]
+        for msg in benign_messages:
+            res = evaluate_rules(msg, None)
+            self.assertEqual(res["risk_level"], "Low", f"Expected Low for: {msg}")
+            self.assertEqual(res["risk_score"], 0, f"Expected 0 for: {msg}")
+            self.assertEqual(len(res["indicators"]), 0, f"Expected 0 indicators for: {msg}")
+
+    def test_scoring_is_strictly_deterministic(self):
+        msg = "Security Alert: Verify your Chase password immediately at https://bit.ly/secure-account-login"
+        url = "https://bit.ly/secure-account-login"
+        runs = [evaluate_rules(msg, url) for _ in range(5)]
+        first = runs[0]
+        for r in runs[1:]:
+            self.assertEqual(r["risk_score"], first["risk_score"])
+            self.assertEqual(r["risk_level"], first["risk_level"])
+            self.assertEqual(r["indicators"], first["indicators"])
+            self.assertEqual(r["recommendation"], first["recommendation"])
+
+
 class TestBenchmarkEvaluator(unittest.TestCase):
     def test_load_valid_benchmark_dataset(self):
         from evaluate import load_dataset, DEFAULT_DATASET_PATH
