@@ -40,6 +40,18 @@ function App() {
       return;
     }
 
+    if (trimmedMessage.length > 10000) {
+      setErrorMessage('Message content exceeds maximum allowed length of 10,000 characters.');
+      setResult(null);
+      return;
+    }
+
+    if (trimmedUrl.length > 2048) {
+      setErrorMessage('Target URL exceeds maximum allowed length of 2,048 characters.');
+      setResult(null);
+      return;
+    }
+
     setIsLoading(true);
     setErrorMessage(null);
 
@@ -76,10 +88,17 @@ function App() {
       }
 
       const data: AnalyzeResponse = await response.json();
+      if (typeof data?.risk_score !== 'number' || !data?.risk_level || !Array.isArray(data?.indicators)) {
+        throw new Error('Received an invalid or malformed response structure from the analysis service.');
+      }
       setResult(data);
     } catch (err) {
       const errText = err instanceof Error ? err.message : 'Failed to reach ScamShield backend service.';
-      setErrorMessage(errText);
+      const userFacingError =
+        errText === 'Failed to fetch' || errText.includes('NetworkError') || errText.includes('Load failed')
+          ? 'Unable to connect to the ScamShield backend service. Please check your network connection or verify that the backend API is online.'
+          : errText;
+      setErrorMessage(userFacingError);
       setResult(null);
     } finally {
       setIsLoading(false);

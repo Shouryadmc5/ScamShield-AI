@@ -5,7 +5,7 @@ from typing import List, Optional, Set, Tuple
 from urllib.parse import urlparse, unquote
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, model_validator, Field
 import uvicorn
 
 app = FastAPI(
@@ -139,8 +139,8 @@ SUSPICIOUS_SCHEMES = {"data", "javascript", "file", "vbscript", "blob"}
 
 
 class AnalyzeRequest(BaseModel):
-    message: Optional[str] = None
-    url: Optional[str] = None
+    message: Optional[str] = Field(default=None, max_length=10000)
+    url: Optional[str] = Field(default=None, max_length=2048)
 
     @model_validator(mode="after")
     def check_non_empty(self):
@@ -165,6 +165,17 @@ def safe_parse_url(raw_url: str):
     Returns (scheme, host, path, has_at, is_malformed, is_ip, original_raw)
     """
     cleaned = raw_url.strip()
+    if not cleaned:
+        return {
+            "scheme": "unknown",
+            "host": "",
+            "path": "",
+            "has_at": False,
+            "is_ip": False,
+            "is_malformed": True,
+            "raw": raw_url,
+        }
+
     # Unquote escaped URL characters defensively
     try:
         unquoted = unquote(cleaned)
@@ -217,13 +228,16 @@ def safe_parse_url(raw_url: str):
             except ValueError:
                 is_ip = False
 
+        # If scheme is http/https but no host could be parsed, it is malformed (e.g. 'http://' or 'https://')
+        is_malformed = bool(scheme in ("http", "https") and not host)
+
         return {
             "scheme": scheme,
             "host": host,
             "path": path.lower(),
             "has_at": has_at_symbol,
             "is_ip": is_ip,
-            "is_malformed": False,
+            "is_malformed": is_malformed,
             "raw": cleaned
         }
     except Exception:

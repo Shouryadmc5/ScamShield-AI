@@ -227,6 +227,48 @@ class TestDetectorImprovements(unittest.TestCase):
             self.assertEqual(r["indicators"], first["indicators"])
             self.assertEqual(r["recommendation"], first["recommendation"])
 
+    def test_input_bounds_validation(self):
+        # Valid bounds
+        req = AnalyzeRequest(message="x" * 10000, url="https://example.com")
+        self.assertEqual(len(req.message), 10000)
+
+        # Exceeding message max_length
+        with self.assertRaises(ValidationError):
+            AnalyzeRequest(message="x" * 10001)
+
+        # Exceeding url max_length
+        with self.assertRaises(ValidationError):
+            AnalyzeRequest(url="https://example.com/" + "a" * 2048)
+
+    def test_malformed_url_handling(self):
+        # URLs with empty host or malformed format
+        res = evaluate_rules(None, "http://")
+        self.assertGreaterEqual(res["risk_score"], 30)
+        self.assertTrue(any("malformed" in ind.lower() for ind in res["indicators"]))
+
+    def test_api_route_integration(self):
+        from starlette.testclient import TestClient
+        client = TestClient(app)
+
+        # 1. Valid request
+        resp = client.post("/api/analyze", json={"message": "Hey Sarah, are we still meeting for lunch today?"})
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn("risk_score", data)
+        self.assertIn("risk_level", data)
+        self.assertIn("indicators", data)
+        self.assertIn("recommendation", data)
+        self.assertIn("analysis_method", data)
+        self.assertEqual(data["risk_level"], "Low")
+
+        # 2. Both fields empty (validation error 422)
+        resp_empty = client.post("/api/analyze", json={"message": "   ", "url": ""})
+        self.assertEqual(resp_empty.status_code, 422)
+
+        # 3. Oversized payload (validation error 422)
+        resp_oversized = client.post("/api/analyze", json={"message": "a" * 10001})
+        self.assertEqual(resp_oversized.status_code, 422)
+
 
 class TestBenchmarkEvaluator(unittest.TestCase):
     def test_load_valid_benchmark_dataset(self):

@@ -8,19 +8,20 @@ AI-powered scam message and phishing URL detection — Hackathon Day 1 release.
 |---|---|
 | Backend (FastAPI, rule-based engine) | ✅ Complete |
 | Frontend (React + TypeScript + Vite) | ✅ Complete |
-| Backend unit tests | ✅ 31/31 passing |
+| Backend unit tests | ✅ 34/34 passing |
+| Synthetic evaluation benchmark | ✅ 45/45 passing (100% synthetic accuracy) |
 | Frontend build (`tsc -b && vite build`) | ✅ Passes |
 | Frontend lint (`eslint .`) | ✅ Passes |
 | Backend deployed (Render) | ✅ `https://scamshield-ai-x4ym.onrender.com` |
-| Frontend deployed (Vercel) | ✅ `https://scamshield-ngfa0g1xm-shouryadmc5-7692.vercel.app` |
+| Frontend deployed (Vercel) | ✅ `https://scamshield-ai.vercel.app` |
 
-### Live Smoke Test Results (Day 1)
+### Live Smoke Test Results
 
-Verified against deployed backend:
+Verified against deployed services:
 
 | Input | Score | Level |
 |---|---|---|
-| Prize winner scam with shortener URL | 45 / 100 | **Medium** |
+| Prize winner scam with shortener URL | 60+ / 100 | **High** |
 | Normal everyday message | 0 / 100 | **Low** |
 
 ### Known Limitations
@@ -31,13 +32,15 @@ Verified against deployed backend:
 
 ---
 
-## Backend Quickstart
+## Quickstart
+
+### 1. Backend Quickstart
 
 1. **Activate virtual environment:**
    - Windows (PowerShell): `.\backend\.venv\Scripts\Activate.ps1`
    - Linux/macOS: `source backend/.venv/bin/activate`
 
-2. **Install dependencies (first time only):**
+2. **Install dependencies:**
    ```bash
    pip install -r backend/requirements.txt
    ```
@@ -58,6 +61,51 @@ Verified against deployed backend:
    ```bash
    python backend/evaluate.py
    ```
+
+### 2. Frontend Quickstart
+
+1. **Navigate to frontend directory & install dependencies:**
+   ```bash
+   cd frontend
+   npm install
+   ```
+
+2. **Run local development server:**
+   ```bash
+   npm run dev
+   ```
+   - App runs at `http://localhost:5173`
+   - By default, requests to `/api` proxy automatically to `http://127.0.0.1:8000` via `vite.config.ts`.
+
+3. **Verify typecheck & production build:**
+   ```bash
+   npm run build
+   npm run lint
+   ```
+
+---
+
+## Demonstration Script
+
+1. **Legitimate Message (Low Risk — Score 0/100):**
+   - **Input:** *"Hey Sarah, are we still meeting for lunch at 12:30pm today? Let me know!"*
+   - **Expected Result:** Risk Score `0/100`, Level `Low`, 0 indicators flagged.
+   - **Evidence:** Shows clean safe badge with recommendation: *"No prominent scam patterns detected. Always verify unexpected requests through trusted channels."*
+
+2. **Suspicious Threat (High Risk — Score 80/100):**
+   - **Input:** *"Chase Security Alert: Unauthorized transaction detected. Verify your password within 24 hours to restore access."*
+   - **Target URL:** `http://chase-security-verify.xyz/account-login`
+   - **Expected Result:** Risk Score `80+/100`, Level `High`.
+   - **Evidence Displayed:** Red risk badge, score progress bar, and categorized indicator pills:
+     - `Brand Impersonation`: references Chase in unverified domain / text lure
+     - `Credential Theft`: solicits password verification
+     - `Deceptive URL`: `.xyz` suspicious TLD + unencrypted HTTP
+     - Action banner: *"Do not click links, provide passwords, or send funds. Report and block the sender immediately."*
+
+3. **Failure & Recovery Handling:**
+   - **Empty Submission:** Click "Run Threat Analysis" with empty fields. Client validates immediately: *"Please provide a message, a URL, or both to analyze."*
+   - **Oversized Input:** Input text exceeding 10,000 characters displays: *"Message content exceeds maximum allowed length of 10,000 characters."*
+   - **Network Disconnect:** If backend is stopped or unreachable, the UI displays a non-crashing banner: *"Unable to connect to the ScamShield backend service. Please check your network connection or verify that the backend API is online."*
 
 ## Production Deployment Guide
 
