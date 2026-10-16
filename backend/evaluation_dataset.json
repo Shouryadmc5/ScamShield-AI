@@ -178,6 +178,230 @@
     },
     "expected_label": "scam",
     "explanation": "Dangerous executable pseudo-protocol (javascript:) aimed at client execution."
+  },
+  {
+    "id": "benign-07",
+    "category": "legitimate_url",
+    "input": {
+      "url": "https://first-bank.com/personal-checking"
+    },
+    "expected_label": "benign",
+    "explanation": "Legitimate regional bank domain with bank in domain stem that is not spoofing a known brand."
+  },
+  {
+    "id": "benign-08",
+    "category": "legitimate_url",
+    "input": {
+      "url": "https://snapple.com/products/peach-tea"
+    },
+    "expected_label": "benign",
+    "explanation": "Beverage domain containing 'apple' as a substring without targeting Apple brand."
+  },
+  {
+    "id": "benign-09",
+    "category": "legitimate_url",
+    "input": {
+      "url": "https://pineapple.com/recipes"
+    },
+    "expected_label": "benign",
+    "explanation": "Food domain containing 'apple' substring without targeting Apple brand."
+  },
+  {
+    "id": "benign-10",
+    "category": "legitimate_url",
+    "input": {
+      "url": "https://purchase-online.com/shop"
+    },
+    "expected_label": "benign",
+    "explanation": "E-commerce domain containing 'chase' substring without targeting Chase bank."
+  },
+  {
+    "id": "benign-11",
+    "category": "legitimate_url",
+    "input": {
+      "url": "https://bit.ly/community-garden-schedule"
+    },
+    "expected_label": "benign",
+    "explanation": "Benign shortened URL pointing to a non-sensitive public community schedule."
+  },
+  {
+    "id": "benign-12",
+    "category": "legitimate_url",
+    "input": {
+      "url": "https://aws.amazon.com/ec2/pricing"
+    },
+    "expected_label": "benign",
+    "explanation": "Legitimate enterprise AWS subdomain under amazon.com."
+  },
+  {
+    "id": "benign-13",
+    "category": "legitimate_url",
+    "input": {
+      "url": "https://t.me/python_devs"
+    },
+    "expected_label": "benign",
+    "explanation": "Legitimate Telegram short domain for a developer channel."
+  },
+  {
+    "id": "borderline-04",
+    "category": "borderline",
+    "input": {
+      "message": "Thanks for paying for dinner last night! I received your payment on Venmo."
+    },
+    "expected_label": "benign",
+    "explanation": "Informal note acknowledging received payment; no urgency, threats, or link lures."
+  },
+  {
+    "id": "borderline-05",
+    "category": "borderline",
+    "input": {
+      "message": "I went to the bank today to deposit my paycheck and got a great rate."
+    },
+    "expected_label": "benign",
+    "explanation": "Personal recount mentioning banking in past tense without credential harvesting."
+  },
+  {
+    "id": "borderline-06",
+    "category": "borderline",
+    "input": {
+      "message": "The local science fair award was presented to the winner yesterday afternoon."
+    },
+    "expected_label": "benign",
+    "explanation": "News-style announcement containing 'winner' and 'award' without soliciting actions."
+  },
+  {
+    "id": "borderline-07",
+    "category": "borderline",
+    "input": {
+      "message": "Your library books are due within 48 hours. Please renew online if needed."
+    },
+    "expected_label": "benign",
+    "explanation": "Standard municipal notification with a deadline but no credentials or money sought."
+  },
+  {
+    "id": "borderline-08",
+    "category": "borderline",
+    "input": {
+      "message": "Electricity service update: Scheduled maintenance in your area this Thursday from 9am to 1pm."
+    },
+    "expected_label": "benign",
+    "explanation": "Routine utility provider maintenance notice with no interaction requested."
+  },
+  {
+    "id": "phish-04",
+    "category": "credential_harvesting",
+    "input": {
+      "message": "Wells Fargo Alert: Suspicious sign-in detected. Unlock your account now: https://bit.ly/account-verify"
+    },
+    "expected_label": "scam",
+    "explanation": "Financial brand alert combined with shortened URL targeting account verification."
+  },
+  {
+    "id": "phish-05",
+    "category": "credential_harvesting",
+    "input": {
+      "message": "Apple Support: Your iCloud has been locked due to illegal activity. Enter your credentials immediately to avoid deletion."
+    },
+    "expected_label": "scam",
+    "explanation": "High-pressure brand lure demanding credential entry to unlock service."
+  },
+  {
+    "id": "phish-06",
+    "category": "credential_harvesting",
+    "input": {
+      "message": "Netflix billing update: Your payment failed and account is restricted. Update your billing credentials within 24 hours."
+    },
+    "expected_label": "scam",
+    "explanation": "Subscription renewal scam demanding billing and credential update under suspension threat."
+  },
+  {
+    "id": "phish-07",
+    "category": "credential_harvesting",
+    "input": {
+      "message": "Bank of America: Someone attempted a wire transfer from your profile. Confirm your security code and OTP to cancel."
+    },
+    "expected_label": "scam",
+    "explanation": "Fraudulent security alert designed to intercept 2FA OTP codes and security PINs."
+  },
+  {
+    "id": "scam-04",
+    "category": "financial_scam",
+    "input": {
+      "message": "Geek Squad: Invoice #7819 charged $499 for annual renewal. If you did not make this purchase, call immediately."
+    },
+    "expected_label": "scam",
+    "explanation": "Fake invoice/refund lure prompting immediate contact for unauthorized transaction."
+  },
+  {
+    "id": "scam-05",
+    "category": "financial_scam",
+    "input": {
+      "message": "Selected winner notification! You have an unclaimed payout of $25,000. Pay release fee via Zelle to collect."
+    },
+    "expected_label": "scam",
+    "explanation": "Lottery winner lure directing advance release fee payment via peer-to-peer app."
+  },
+  {
+    "id": "scam-06",
+    "category": "financial_scam",
+    "input": {
+      "message": "USPS: Package delivery suspended due to unpaid clearance fee of $1.99. Pay fee to release shipment."
+    },
+    "expected_label": "scam",
+    "explanation": "Smishing package delivery scam with clearance fee requirement to release goods."
+  },
+  {
+    "id": "scam-07",
+    "category": "financial_scam",
+    "input": {
+      "message": "Urgent: Send 500 USDT through cryptocurrency wallet to double your investment before offer expires."
+    },
+    "expected_label": "scam",
+    "explanation": "High-urgency crypto doubling Ponzi scheme."
+  },
+  {
+    "id": "url-06",
+    "category": "deceptive_url",
+    "input": {
+      "url": "http://apple-support-login.top/verify-identity"
+    },
+    "expected_label": "scam",
+    "explanation": "Brand spoofing in domain stem on high-abuse .top TLD over unencrypted HTTP."
+  },
+  {
+    "id": "url-07",
+    "category": "deceptive_url",
+    "input": {
+      "url": "https://secure-login.chase.com.account-update.xyz/signin"
+    },
+    "expected_label": "scam",
+    "explanation": "Deep subdomain nesting disguised with chase.com inside a deceptive .xyz root domain."
+  },
+  {
+    "id": "url-08",
+    "category": "deceptive_url",
+    "input": {
+      "url": "https://tinyurl.com/update-billing"
+    },
+    "expected_label": "scam",
+    "explanation": "URL shortener hiding destination with an explicitly sensitive billing path."
+  },
+  {
+    "id": "url-09",
+    "category": "deceptive_url",
+    "input": {
+      "url": "data:text/html;base64,PHNjcmlwdD5sb2NhdGlvbi5ocmVmPSdodHRwOi8vZXZpbC5leGFtcGxlJzwvc2NyaXB0Pg=="
+    },
+    "expected_label": "scam",
+    "explanation": "Executable data URI payload scheme embedding client redirect script."
+  },
+  {
+    "id": "url-10",
+    "category": "deceptive_url",
+    "input": {
+      "url": "http://10.0.0.1/paypal/signin"
+    },
+    "expected_label": "scam",
+    "explanation": "Raw IP address host with brand path impersonation over unencrypted HTTP."
   }
 ]
-

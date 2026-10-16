@@ -290,6 +290,35 @@ class TestBenchmarkEvaluator(unittest.TestCase):
         self.assertEqual(res["metrics"]["accuracy"], 1.0)
         self.assertEqual(res["metrics"]["f1_score"], 1.0)
 
+    def test_dataset_consistency_and_unique_ids(self):
+        from evaluate import load_dataset, DEFAULT_DATASET_PATH
+        items = load_dataset(DEFAULT_DATASET_PATH)
+        self.assertGreaterEqual(len(items), 40, "Evaluation dataset must contain at least 40 cases")
+        ids = [it["id"] for it in items]
+        self.assertEqual(len(ids), len(set(ids)), "All dataset IDs must be strictly unique")
+        for it in items:
+            self.assertIn("category", it)
+            self.assertIn("explanation", it)
+            self.assertTrue(len(it["explanation"].strip()) > 5, f"Entry {it['id']} must have an informative explanation")
+
+    def test_metrics_calculation_edge_cases(self):
+        from evaluate import run_benchmark
+        # All false positives test
+        all_fp_dataset = [
+            {"id": "e1", "category": "test", "expected_label": "benign", "input": {"message": "URGENT: verify your password now"}},
+        ]
+        res_fp = run_benchmark(all_fp_dataset, threshold=30)
+        self.assertEqual(res_fp["confusion_matrix"]["FP"], 1)
+        self.assertEqual(res_fp["metrics"]["precision"], 0.0)
+        self.assertEqual(res_fp["metrics"]["recall"], 0.0)
+        self.assertEqual(res_fp["metrics"]["f1_score"], 0.0)
+
+        # Empty dataset edge case
+        res_empty = run_benchmark([], threshold=30)
+        self.assertEqual(res_empty["total"], 0)
+        self.assertEqual(res_empty["metrics"]["accuracy"], 0.0)
+        self.assertEqual(res_empty["metrics"]["f1_score"], 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()

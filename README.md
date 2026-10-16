@@ -8,7 +8,7 @@ AI-powered scam message and phishing URL detection — Hackathon Day 1 release.
 |---|---|
 | Backend (FastAPI, rule-based engine) | ✅ Complete |
 | Frontend (React + TypeScript + Vite) | ✅ Complete |
-| Backend unit tests | ✅ 22/22 passing |
+| Backend unit tests | ✅ 31/31 passing |
 | Frontend build (`tsc -b && vite build`) | ✅ Passes |
 | Frontend lint (`eslint .`) | ✅ Passes |
 | Backend deployed (Render) | ✅ `https://scamshield-ai-x4ym.onrender.com` |
@@ -25,9 +25,9 @@ Verified against deployed backend:
 
 ### Known Limitations
 
-- **Ambiguous shortened URLs:** A URL shortener (e.g. `https://bit.ly/...`) submitted alone without accompanying scam-lure text scores 20 — below the Medium threshold of 30. This is a deliberate trade-off: raising the shortener weight would produce false positives on legitimate uses (e.g. shared news links). A future fix requires text context or a URL-expand service.
-- **Synthetic benchmark only:** The evaluation dataset (`backend/evaluation_dataset.json`) contains 20 handcrafted synthetic examples for regression tracking. The 95% accuracy / 0.9524 F1 figures reflect only this small dataset and are **not evidence of real-world detection performance**. Do not cite them as production-accuracy metrics.
-- **Rule-based engine:** Detection is deterministic heuristics (no ML model). New scam patterns not covered by existing rules will be missed until rules are updated.
+- **Ambiguous shortened URLs:** A URL shortener (e.g. `https://bit.ly/...`) submitted alone without accompanying context or sensitive path signals scores moderately to prevent false positives on benign shared links.
+- **Synthetic benchmark only:** The evaluation dataset (`backend/evaluation_dataset.json`) contains 45 handcrafted synthetic examples across 6 categories for local regression tracking. High synthetic benchmark metrics reflect only this curated suite and are **not evidence of real-world detection performance**. Do not cite them as production-accuracy metrics.
+- **Rule-based engine:** Detection is deterministic heuristics (no ML model). Novel scam lures outside codified patterns require ongoing rule expansion.
 
 ---
 
