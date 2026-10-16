@@ -112,6 +112,26 @@ function App() {
     }
   };
 
+  const getIndicatorCategory = (indicator: string) => {
+    const text = indicator.toLowerCase();
+    if (text.includes('password') || text.includes('credential') || text.includes('otp') || text.includes('verification')) {
+      return { tag: 'Credential Theft', type: 'credential' };
+    }
+    if (text.includes('urgency') || text.includes('deadline') || text.includes('suspended') || text.includes('closure') || text.includes('capitalization')) {
+      return { tag: 'Urgency & Pressure', type: 'urgency' };
+    }
+    if (text.includes('spoofing') || text.includes('brand') || text.includes('subdomain') || text.includes('impersonat')) {
+      return { tag: 'Brand Impersonation', type: 'brand' };
+    }
+    if (text.includes('shortener') || text.includes('ip address') || text.includes('scheme') || text.includes('unencrypted') || text.includes('domain') || text.includes('tld') || text.includes('@')) {
+      return { tag: 'Deceptive URL / Link', type: 'url' };
+    }
+    if (text.includes('prize') || text.includes('refund') || text.includes('transfer') || text.includes('crypto') || text.includes('gift card') || text.includes('fee') || text.includes('invoice')) {
+      return { tag: 'Financial / Advance Fee', type: 'financial' };
+    }
+    return { tag: 'Suspicious Signal', type: 'general' };
+  };
+
   return (
     <div className="app-container">
       {/* Header */}
@@ -298,48 +318,92 @@ function App() {
                   <span className="score-number">{result.risk_score}</span>
                   <span className="score-max">/100</span>
                 </div>
-                <div>
-                  <span className={`risk-level-tag ${getRiskClass(result.risk_level)}`}>
-                    {result.risk_level} Risk
-                  </span>
+                <div className="risk-header-details">
+                  <div className="risk-tag-row">
+                    <span className={`risk-level-tag ${getRiskClass(result.risk_level)}`}>
+                      {result.risk_level} Risk Level
+                    </span>
+                    <span className="threat-indicator-count">
+                      {result.indicators.length} {result.indicators.length === 1 ? 'Signal Flagged' : 'Signals Flagged'}
+                    </span>
+                  </div>
                   <div className="risk-title">
                     {result.risk_level === 'High' && 'High Probability Scam Detected'}
-                    {result.risk_level === 'Medium' && 'Suspicious Indicators Found'}
-                    {result.risk_level === 'Low' && 'Low Threat Detected'}
+                    {result.risk_level === 'Medium' && 'Suspicious Indicators Found — Caution Advised'}
+                    {result.risk_level === 'Low' && 'Low Threat Detected — Standard Caution'}
                   </div>
+                </div>
+              </div>
+
+              {/* Visual Score Gauge Bar */}
+              <div className="score-bar-container" aria-label={`Risk score: ${result.risk_score} out of 100`}>
+                <div className="score-bar-track">
+                  <div
+                    className={`score-bar-fill ${getRiskClass(result.risk_level)}`}
+                    style={{ width: `${Math.max(result.risk_score, 4)}%` }}
+                  />
+                </div>
+                <div className="score-bar-labels">
+                  <span>0 (Safe)</span>
+                  <span>30 (Medium)</span>
+                  <span>60+ (High)</span>
                 </div>
               </div>
             </div>
 
             {/* Detected Indicators */}
-            <div>
-              <h3 className="section-title">Detected Risk Indicators</h3>
+            <div className="indicators-section">
+              <div className="section-header-row">
+                <h3 className="section-title">Detected Threat Indicators</h3>
+                <span className="section-subtitle">Categorized breakdown of observed patterns</span>
+              </div>
               {result.indicators.length > 0 ? (
                 <ul className="indicators-list">
-                  {result.indicators.map((ind, i) => (
-                    <li key={i} className={`indicator-item ${getRiskClass(result.risk_level)}`}>
-                      <span className="indicator-bullet" aria-hidden="true">⚠</span>
-                      <span>{ind}</span>
-                    </li>
-                  ))}
+                  {result.indicators.map((ind, i) => {
+                    const cat = getIndicatorCategory(ind);
+                    return (
+                      <li key={i} className={`indicator-item ${getRiskClass(result.risk_level)}`}>
+                        <span className="indicator-badge">{cat.tag}</span>
+                        <span className="indicator-text">{ind}</span>
+                      </li>
+                    );
+                  })}
                 </ul>
               ) : (
                 <div className="no-indicators-box">
-                  No recognized phishing keywords, deceptive domain patterns, or urgency tactics identified.
+                  <span className="check-icon" aria-hidden="true">✓</span>
+                  <span>No recognized phishing keywords, deceptive domain structures, or high-pressure tactics identified.</span>
                 </div>
               )}
             </div>
 
             {/* Safe Recommendation */}
             <div className={`recommendation-box ${getRiskClass(result.risk_level)} risk-banner`}>
-              <div className="rec-title">Recommended Action</div>
+              <div className="rec-header">
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="16" x2="12" y2="12" />
+                  <line x1="12" y1="8" x2="12.01" y2="8" />
+                </svg>
+                <span className="rec-title">Recommended Safety Action</span>
+              </div>
               <div className="rec-text">{result.recommendation}</div>
             </div>
 
             {/* Metadata */}
             <div className="results-meta">
               <span><strong>Inspection Method:</strong> {result.analysis_method}</span>
-              <span>Safe local inspection (no URLs loaded)</span>
+              <span>Local heuristic analysis • No URLs contacted</span>
             </div>
           </section>
         )}

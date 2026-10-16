@@ -350,55 +350,166 @@
   border: 1px solid var(--risk-high-border);
 }
 
-/* Indicators List */
+.risk-header-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.risk-tag-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.threat-indicator-count {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-card-subtle);
+  border: 1px solid var(--border-color);
+  padding: 0.25rem 0.65rem;
+  border-radius: 9999px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Score Gauge Bar */
+.score-bar-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.score-bar-track {
+  width: 100%;
+  height: 8px;
+  background: var(--bg-card-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.score-bar-fill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.4s ease-in-out;
+}
+
+.score-bar-fill.risk-low {
+  background: var(--risk-low);
+}
+
+.score-bar-fill.risk-medium {
+  background: var(--risk-med);
+}
+
+.score-bar-fill.risk-high {
+  background: var(--risk-high);
+}
+
+.score-bar-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+/* Indicators List & Badges */
+.indicators-section {
+  margin-bottom: 1.5rem;
+}
+
+.section-header-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
 .section-title {
   font-size: 0.95rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
-  margin-bottom: 0.75rem;
+  margin-bottom: 0;
+}
+
+.section-subtitle {
+  font-size: 0.8rem;
+  color: var(--text-dim);
 }
 
 .indicators-list {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  margin-bottom: 1.5rem;
+  gap: 0.65rem;
 }
 
 .indicator-item {
   display: flex;
-  align-items: flex-start;
-  gap: 0.65rem;
-  font-size: 0.95rem;
+  align-items: center;
+  gap: 0.85rem;
+  font-size: 0.92rem;
   color: var(--text-main);
   background: var(--bg-card-subtle);
-  padding: 0.65rem 0.9rem;
-  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
   border-left: 3px solid currentColor;
+  flex-wrap: wrap;
 }
 
-.indicator-bullet {
-  font-weight: bold;
+.indicator-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  white-space: nowrap;
+}
+
+.indicator-text {
+  flex: 1;
 }
 
 .no-indicators-box {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
   padding: 0.85rem 1rem;
   background: var(--risk-low-bg);
   border: 1px solid var(--risk-low-border);
   color: var(--risk-low);
   border-radius: 6px;
-  font-size: 0.95rem;
-  margin-bottom: 1.5rem;
+  font-size: 0.92rem;
+}
+
+.check-icon {
+  font-weight: bold;
+  font-size: 1.1rem;
 }
 
 /* Recommendation Box */
 .recommendation-box {
-  padding: 1rem 1.25rem;
+  padding: 1.15rem 1.35rem;
   border-radius: 8px;
   margin-bottom: 1.5rem;
+}
+
+.rec-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.45rem;
 }
 
 .rec-title {
@@ -406,7 +517,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  margin-bottom: 0.35rem;
+  margin-bottom: 0;
 }
 
 .rec-text {
