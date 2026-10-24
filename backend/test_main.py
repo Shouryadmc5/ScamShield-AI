@@ -5,7 +5,7 @@ import os
 # Add backend directory to sys.path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from main import evaluate_rules, safe_parse_url, app, AnalyzeRequest, health
+from main import evaluate_rules, safe_parse_url, app, AnalyzeRequest, AnalyzeResponse, health
 from pydantic import ValidationError
 
 
@@ -247,27 +247,117 @@ class TestDetectorImprovements(unittest.TestCase):
         self.assertTrue(any("malformed" in ind.lower() for ind in res["indicators"]))
 
     def test_api_route_integration(self):
-        from starlette.testclient import TestClient
-        client = TestClient(app)
+        # Genuine in-memory ASGI dispatch test through full FastAPI/Starlette pipeline
+        # (middleware, routing, Pydantic validation, serialization, and CORS headers).
+        # Uses an in-memory event loop selector to prevent Windows loopback socket hangs.
+        import asyncio
+        import json
 
-        # 1. Valid request
-        resp = client.post("/api/analyze", json={"message": "Hey Sarah, are we still meeting for lunch today?"})
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        self.assertIn("risk_score", data)
-        self.assertIn("risk_level", data)
-        self.assertIn("indicators", data)
-        self.assertIn("recommendation", data)
-        self.assertIn("analysis_method", data)
-        self.assertEqual(data["risk_level"], "Low")
+        class _InMemorySelector:
+            def __init__(self):
+                self._readers = {}
+                self._writers = {}
+            def register(self, fileobj, events, data=None): pass
+            def unregister(self, fileobj): pass
+            def select(self, timeout=None): return []
+            def close(self): pass
 
-        # 2. Both fields empty (validation error 422)
-        resp_empty = client.post("/api/analyze", json={"message": "   ", "url": ""})
-        self.assertEqual(resp_empty.status_code, 422)
+        class _InMemorySelectorLoop(asyncio.SelectorEventLoop):
+            def __init__(self):
+                super().__init__(selector=_InMemorySelector())
+            def _make_self_pipe(self): pass
+            def _close_self_pipe(self): pass
+            def _write_to_self(self): pass
+            def _read_from_self(self): pass
+            def _add_reader(self, fd, callback, *args): pass
+            def _remove_reader(self, fd): pass
 
-        # 3. Oversized payload (validation error 422)
-        resp_oversized = client.post("/api/analyze", json={"message": "a" * 10001})
-        self.assertEqual(resp_oversized.status_code, 422)
+        async def _dispatch_asgi(payload: dict = None, origin: str = None):
+            body = json.dumps(payload).encode("utf-8") if payload is not None else b""
+            headers = [
+                (b"host", b"testserver"),
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(body)).encode("ascii")),
+            ]
+            if origin:
+                headers.append((b"origin", origin.encode("ascii")))
+
+            scope = {
+                "type": "http",
+                "asgi": {"version": "3.0", "spec_version": "2.0"},
+                "http_version": "1.1",
+                "method": "POST",
+                "scheme": "http",
+                "path": "/api/analyze",
+                "raw_path": b"/api/analyze",
+                "query_string": b"",
+                "headers": headers,
+                "client": ("127.0.0.1", 12345),
+                "server": ("testserver", 80),
+            }
+
+            sent = False
+            async def receive():
+                nonlocal sent
+                if not sent:
+                    sent = True
+                    return {"type": "http.request", "body": body, "more_body": False}
+                return {"type": "http.request", "body": b"", "more_body": False}
+
+            response_status = None
+            response_headers = {}
+            response_chunks = []
+
+            async def send(message):
+                nonlocal response_status, response_headers
+                if message["type"] == "http.response.start":
+                    response_status = message["status"]
+                    response_headers = {
+                        k.decode("latin1").lower(): v.decode("latin1")
+                        for k, v in message.get("headers", [])
+                    }
+                elif message["type"] == "http.response.body":
+                    response_chunks.append(message.get("body", b""))
+
+            await app(scope, receive, send)
+            raw_body = b"".join(response_chunks)
+            json_body = json.loads(raw_body.decode("utf-8")) if raw_body else {}
+            return response_status, response_headers, json_body
+
+        loop = _InMemorySelectorLoop()
+        asyncio.set_event_loop(loop)
+        try:
+            # 1. Valid request through full ASGI pipeline
+            status, headers, data = loop.run_until_complete(
+                _dispatch_asgi(
+                    {"message": "Hey Sarah, are we still meeting for lunch today?"},
+                    origin="https://scamshield.vercel.app",
+                )
+            )
+            self.assertEqual(status, 200)
+            self.assertEqual(headers.get("access-control-allow-origin"), "https://scamshield.vercel.app")
+            self.assertIn("risk_score", data)
+            self.assertIn("risk_level", data)
+            self.assertIn("indicators", data)
+            self.assertIn("recommendation", data)
+            self.assertIn("analysis_method", data)
+            self.assertEqual(data["risk_level"], "Low")
+
+            # 2. Both fields empty (rejected by Pydantic validation middleware -> 422 Unprocessable Entity)
+            status_empty, _, data_empty = loop.run_until_complete(
+                _dispatch_asgi({"message": "   ", "url": ""})
+            )
+            self.assertEqual(status_empty, 422)
+            self.assertIn("detail", data_empty)
+
+            # 3. Oversized payload (rejected by Pydantic max_length validator -> 422)
+            status_oversized, _, data_oversized = loop.run_until_complete(
+                _dispatch_asgi({"message": "a" * 10001})
+            )
+            self.assertEqual(status_oversized, 422)
+            self.assertIn("detail", data_oversized)
+        finally:
+            loop.close()
 
 
 class TestBenchmarkEvaluator(unittest.TestCase):
