@@ -1,12 +1,16 @@
 import unittest
 import sys
 import os
+import asyncio
+from unittest.mock import patch
 
 # Add backend directory to sys.path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from main import evaluate_rules, safe_parse_url, app, AnalyzeRequest, AnalyzeResponse, health
 from pydantic import ValidationError
+from nebius_client import NebiusError
+import main
 
 
 class TestScamShieldRuleAudit(unittest.TestCase):
@@ -152,6 +156,33 @@ class TestScamShieldRuleAudit(unittest.TestCase):
         self.assertTrue(bool(re.match(vercel_origin_regex, "https://scamshield-ngfa0g1xm-shouryadmc5-7692.vercel.app")))
         self.assertTrue(bool(re.match(vercel_origin_regex, "https://scamshield-ai.vercel.app")))
         self.assertFalse(bool(re.match(vercel_origin_regex, "http://malicious-vercel.app.fake.com")))
+
+
+class TestNebiusFallback(unittest.TestCase):
+    def test_unconfigured_nebius_uses_rule_based_response(self):
+        request = AnalyzeRequest(message="URGENT: verify your password now")
+        with patch("nebius_client.is_configured", return_value=False):
+            result = asyncio.run(main.analyze(request))
+
+        self.assertEqual(
+            set(result),
+            {"risk_score", "risk_level", "indicators", "recommendation", "analysis_method"},
+        )
+        self.assertIn("rule-based", result["analysis_method"].lower())
+
+    def test_nebius_error_falls_back_to_rules(self):
+        request = AnalyzeRequest(message="URGENT: verify your password now")
+
+        async def fail_request(*args):
+            raise NebiusError("Nebius API returned HTTP 503.")
+
+        with (
+            patch("nebius_client.is_configured", return_value=True),
+            patch("nebius_client.call_nebius", side_effect=fail_request),
+        ):
+            result = asyncio.run(main.analyze(request))
+
+        self.assertIn("rule-based", result["analysis_method"].lower())
 
 
 class TestDetectorImprovements(unittest.TestCase):

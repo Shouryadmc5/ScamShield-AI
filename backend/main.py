@@ -6,6 +6,12 @@ from urllib.parse import urlparse, unquote
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, model_validator, Field
+import logging
+from dotenv import load_dotenv
+
+load_dotenv()
+
+_log = logging.getLogger(__name__)
 import uvicorn
 
 app = FastAPI(
@@ -547,7 +553,22 @@ def health():
 
 
 @app.post("/api/analyze", response_model=AnalyzeResponse)
-def analyze(payload: AnalyzeRequest):
+async def analyze(payload: AnalyzeRequest):
+    """
+    Analyse a message and/or URL for scam indicators.
+
+    Primary path : Nebius AI LLM inference (requires NEBIUS_API_KEY env var).
+    Fallback path: Deterministic rule-based heuristics (always available).
+    """
+    from nebius_client import is_configured, call_nebius, NebiusError
+
+    if is_configured():
+        try:
+            result = await call_nebius(payload.message, payload.url)
+            return result
+        except NebiusError as exc:
+            _log.warning("Nebius inference failed, falling back to rules: %s", exc)
+
     result = evaluate_rules(payload.message, payload.url)
     return result
 
