@@ -607,14 +607,17 @@ async def analyze(payload: AnalyzeRequest):
     Primary path : Nebius AI LLM inference (requires NEBIUS_API_KEY env var).
     Fallback path: Deterministic rule-based heuristics (always available).
     """
-    from nebius_client import is_configured, call_nebius, NebiusError
+    if __package__:
+        from . import nebius_client
+    else:
+        import nebius_client
 
     fallback_reason = "Nebius not configured"
-    if is_configured():
+    if nebius_client.is_configured():
         try:
-            result = await call_nebius(payload.message, payload.url)
+            result = await nebius_client.call_nebius(payload.message, payload.url)
             return result
-        except NebiusError as exc:
+        except nebius_client.NebiusError as exc:
             fallback_reason = "Nebius inference failed"
             _log.warning(
                 "Nebius inference failed, falling back to rules (%s)",

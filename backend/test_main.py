@@ -247,6 +247,20 @@ class TestNebiusFallback(unittest.TestCase):
         self.assertIn("rule-based", result["analysis_method"].lower())
         self.assertIn("not configured", result["analysis_method"].lower())
 
+    def test_package_import_unconfigured_nebius_uses_rule_based_response(self):
+        from backend import main as package_main
+
+        request = package_main.AnalyzeRequest(message="URGENT: verify your password now")
+        with patch("backend.nebius_client.is_configured", return_value=False):
+            result = asyncio.run(package_main.analyze(request))
+
+        self.assertEqual(
+            set(result),
+            {"risk_score", "risk_level", "indicators", "recommendation", "analysis_method"},
+        )
+        self.assertIn("rule-based", result["analysis_method"].lower())
+        self.assertIn("not configured", result["analysis_method"].lower())
+
     def test_missing_model_does_not_send_submitted_content_to_nebius(self):
         request = AnalyzeRequest(message="PRIVATE_USER_MESSAGE_CONTENT")
         with (
