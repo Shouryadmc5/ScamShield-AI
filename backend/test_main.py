@@ -2,6 +2,7 @@ import unittest
 import sys
 import os
 import asyncio
+import json
 from unittest.mock import patch
 
 # Add backend directory to sys.path
@@ -31,6 +32,18 @@ class TestScamShieldRuleAudit(unittest.TestCase):
         self.assertEqual(result["risk_level"], "Low")
         self.assertLess(result["risk_score"], 30)
         self.assertTrue(any("urgency" in ind.lower() for ind in result["indicators"]))
+
+    def test_urgent_personal_message_and_legitimate_financial_alert_stay_low(self):
+        benign_messages = (
+            "Urgent: the school office closes at 4, so please bring the signed form before pickup.",
+            "Your card was used for $18.42 at Market Street Cafe. If this was not you, call the number on your card.",
+            "Your payment of $68.40 to City Utilities was received. No further action is needed.",
+        )
+        for message in benign_messages:
+            with self.subTest(message=message):
+                result = evaluate_rules(message, None)
+                self.assertLess(result["risk_score"], 30)
+                self.assertEqual(result["risk_level"], "Low")
 
     def test_legitimate_brand_url_not_flagged_as_spoofing(self):
         result = evaluate_rules(None, "https://www.paypal.com/signin")
@@ -81,6 +94,61 @@ class TestScamShieldRuleAudit(unittest.TestCase):
         combined_inds = " ".join(result["indicators"]).lower()
         self.assertTrue("spoofing" in combined_inds)
 
+    def test_brand_lookalike_domain_is_flagged(self):
+        result = evaluate_rules(None, "https://paypa1-security.example/login")
+        self.assertGreaterEqual(result["risk_score"], 30)
+        self.assertTrue(any("lookalike spelling" in item.lower() for item in result["indicators"]))
+
+    def test_lookalike_rule_does_not_match_substrings_or_legitimate_brand_url(self):
+        for url in (
+            "https://pineapple.com/recipes",
+            "https://developer.apple.com/documentation",
+        ):
+            with self.subTest(url=url):
+                result = evaluate_rules(None, url)
+                self.assertFalse(
+                    any("lookalike spelling" in item.lower() for item in result["indicators"])
+                )
+
+    def test_internationalized_domain_is_reported_as_a_caution(self):
+        result = evaluate_rules(None, "https://раypal.example/login")
+        self.assertTrue(
+            any("internationalized characters" in item.lower() for item in result["indicators"])
+        )
+        self.assertLess(result["risk_score"], 60)
+
+    def test_ipv6_host_is_parsed_as_an_ip_address(self):
+        result = evaluate_rules(None, "http://[2001:db8::1]/account")
+        self.assertTrue(any("raw ip address" in item.lower() for item in result["indicators"]))
+
+    def test_payment_method_requires_payment_context(self):
+        benign_mentions = (
+            "I bought a gift card for my niece's birthday.",
+            "We discussed Bitcoin during the economics lecture.",
+        )
+        for message in benign_mentions:
+            with self.subTest(message=message):
+                result = evaluate_rules(message, None)
+                self.assertLess(result["risk_score"], 30)
+                self.assertFalse(
+                    any("hard-to-reverse method" in item.lower() for item in result["indicators"])
+                )
+
+        scam_request = "Please buy gift cards to verify the account and read me the codes."
+        result = evaluate_rules(scam_request, None)
+        self.assertTrue(any("demands payment" in item.lower() for item in result["indicators"]))
+
+    def test_explicit_payment_app_request_and_neutral_receipt(self):
+        scam_request = "Send payment through Cash App today to avoid collection."
+        result = evaluate_rules(scam_request, None)
+        self.assertTrue(any("demands payment" in item.lower() for item in result["indicators"]))
+        self.assertGreaterEqual(result["risk_score"], 30)
+
+        benign_receipt = "I received the payment through Cash App yesterday. Thank you."
+        result = evaluate_rules(benign_receipt, None)
+        self.assertLess(result["risk_score"], 30)
+        self.assertFalse(any("demands payment" in item.lower() for item in result["indicators"]))
+
     # -------------------------------------------------------------
     # 4. Malformed URLs, Deceptive Formats & Dangerous Schemes
     # -------------------------------------------------------------
@@ -96,6 +164,14 @@ class TestScamShieldRuleAudit(unittest.TestCase):
         result = evaluate_rules(None, "https://google.com@attacker-site.com/fake-login")
         self.assertGreaterEqual(result["risk_score"], 30)
         self.assertTrue(any("@" in ind for ind in result["indicators"]))
+
+    def test_email_address_in_url_query_is_not_user_info_obfuscation(self):
+        result = evaluate_rules(
+            None,
+            "https://example.org/contact?email=support@example.org",
+        )
+        self.assertLess(result["risk_score"], 30)
+        self.assertFalse(any("user-info notation" in item.lower() for item in result["indicators"]))
 
     def test_raw_ip_address_host(self):
         result = evaluate_rules(None, "http://192.168.1.100/account-verify")
@@ -169,9 +245,23 @@ class TestNebiusFallback(unittest.TestCase):
             {"risk_score", "risk_level", "indicators", "recommendation", "analysis_method"},
         )
         self.assertIn("rule-based", result["analysis_method"].lower())
+        self.assertIn("not configured", result["analysis_method"].lower())
+
+    def test_missing_model_does_not_send_submitted_content_to_nebius(self):
+        request = AnalyzeRequest(message="PRIVATE_USER_MESSAGE_CONTENT")
+        with (
+            patch.dict(os.environ, {"NEBIUS_API_KEY": "test-key"}),
+            patch("nebius_client.call_nebius") as call_nebius,
+        ):
+            os.environ.pop("NEBIUS_MODEL", None)
+            result = asyncio.run(main.analyze(request))
+
+        call_nebius.assert_not_called()
+        self.assertIn("not configured", result["analysis_method"].lower())
 
     def test_nebius_error_falls_back_to_rules(self):
-        request = AnalyzeRequest(message="URGENT: verify your password now")
+        private_message = "PRIVATE_USER_MESSAGE_CONTENT"
+        request = AnalyzeRequest(message=private_message)
 
         async def fail_request(*args):
             raise NebiusError("Nebius API returned HTTP 503.")
@@ -179,10 +269,13 @@ class TestNebiusFallback(unittest.TestCase):
         with (
             patch("nebius_client.is_configured", return_value=True),
             patch("nebius_client.call_nebius", side_effect=fail_request),
+            self.assertLogs(main._log, level="WARNING") as captured,
         ):
             result = asyncio.run(main.analyze(request))
 
         self.assertIn("rule-based", result["analysis_method"].lower())
+        self.assertIn("inference failed", result["analysis_method"].lower())
+        self.assertNotIn(private_message, "\n".join(captured.output))
 
 
 class TestDetectorImprovements(unittest.TestCase):
@@ -224,6 +317,25 @@ class TestDetectorImprovements(unittest.TestCase):
         self.assertEqual(result["risk_level"], "High")
         combined_inds = " ".join(result["indicators"]).lower()
         self.assertTrue("advance-fee" in combined_inds or "wire transfer" in combined_inds)
+
+    def test_changed_bank_details_payment_request_is_flagged_without_scam_keywords(self):
+        message = (
+            "Please pay the outstanding invoice to our updated bank account; "
+            "the previous account is closed."
+        )
+        result = evaluate_rules(message, None)
+        self.assertGreaterEqual(result["risk_score"], 30)
+        self.assertIn(result["risk_level"], ["Medium", "High"])
+        self.assertTrue(any("changed or replacement bank details" in item for item in result["indicators"]))
+
+        neutral_message = (
+            "The vendor changed its bank details; update the contact sheet after finance verifies them."
+        )
+        neutral_result = evaluate_rules(neutral_message, None)
+        self.assertEqual(neutral_result["risk_level"], "Low")
+        self.assertFalse(
+            any("changed or replacement bank details" in item for item in neutral_result["indicators"])
+        )
 
     def test_fake_invoice_and_billing_fraud(self):
         msg = "Geek Squad: Invoice #9823 for $399 auto-renewal charged. Call immediately if unauthorized transaction."
@@ -417,6 +529,21 @@ class TestBenchmarkEvaluator(unittest.TestCase):
         finally:
             os.remove(tf_name)
 
+        malformed_cases = (
+            '[{"id": "same", "expected_label": "benign", "input": {"message": "one"}},'
+            '{"id": "same", "expected_label": "scam", "input": {"message": "two"}}]',
+            '[{"id": "non-string", "expected_label": "benign", "input": {"message": 42}}]',
+        )
+        for raw_data in malformed_cases:
+            with tempfile.NamedTemporaryFile("w+", delete=False, suffix=".json") as tf:
+                tf.write(raw_data)
+                tf_name = tf.name
+            try:
+                with self.assertRaises(ValueError):
+                    load_dataset(tf_name)
+            finally:
+                os.remove(tf_name)
+
         # Test invalid expected_label
         with tempfile.NamedTemporaryFile("w+", delete=False, suffix=".json") as tf:
             tf.write('[{"id": "bad-label", "expected_label": "maybe_phish", "input": {"message": "hi"}}]')
@@ -452,6 +579,56 @@ class TestBenchmarkEvaluator(unittest.TestCase):
         self.assertEqual(cm["FN"], 0)
         self.assertEqual(res["metrics"]["accuracy"], 1.0)
         self.assertEqual(res["metrics"]["f1_score"], 1.0)
+        self.assertEqual(res["label_distribution"], {"benign": 1, "scam": 1})
+
+    def test_held_out_dataset_is_disjoint_and_loads(self):
+        from difflib import SequenceMatcher
+        from evaluate import (
+            DEFAULT_DATASET_PATH,
+            HELD_OUT_DATASET_PATH,
+            load_dataset,
+        )
+        tuning = load_dataset(DEFAULT_DATASET_PATH)
+        held_out = load_dataset(HELD_OUT_DATASET_PATH)
+        self.assertEqual(len(held_out), 20)
+        self.assertTrue({item["id"] for item in tuning}.isdisjoint(
+            {item["id"] for item in held_out}
+        ))
+        tuning_inputs = {
+            json.dumps(item["input"], sort_keys=True).casefold()
+            for item in tuning
+        }
+        held_out_inputs = {
+            json.dumps(item["input"], sort_keys=True).casefold()
+            for item in held_out
+        }
+        self.assertTrue(tuning_inputs.isdisjoint(held_out_inputs))
+        for tuning_item in tuning:
+            for held_out_item in held_out:
+                for field in ("message", "url"):
+                    tuning_value = tuning_item["input"].get(field)
+                    held_out_value = held_out_item["input"].get(field)
+                    if tuning_value and held_out_value:
+                        similarity = SequenceMatcher(
+                            None,
+                            " ".join(tuning_value.casefold().split()),
+                            " ".join(held_out_value.casefold().split()),
+                        ).ratio()
+                        self.assertLess(
+                            similarity,
+                            0.7,
+                            f"Near-duplicate {field}: {tuning_item['id']} / {held_out_item['id']}",
+                        )
+        self.assertEqual(
+            {label: sum(item["expected_label"] == label for item in held_out)
+             for label in ("benign", "scam")},
+            {"benign": 10, "scam": 10},
+        )
+
+    def test_benchmark_rejects_invalid_threshold(self):
+        from evaluate import run_benchmark
+        with self.assertRaises(ValueError):
+            run_benchmark([], threshold=101)
 
     def test_dataset_consistency_and_unique_ids(self):
         from evaluate import load_dataset, DEFAULT_DATASET_PATH

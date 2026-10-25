@@ -112,12 +112,14 @@ PRIZE_PATTERNS = [
 ]
 
 SUSPICIOUS_PAYMENT_PATTERNS = [
-    (r"\bwire transfer\b", "Requests payment via wire transfer"),
-    (r"\bgift card(s)?\b", "Requests non-traceable gift card payment"),
-    (r"\b(crypto|cryptocurrency|bitcoin|ethereum|usdt)\b", "References cryptocurrency transfer"),
+    (r"\b(send|pay|transfer)\b.{0,35}\b(wire transfer|gift cards?|crypto|cryptocurrency|bitcoin|ethereum|usdt)\b", "Requests payment via a hard-to-reverse method"),
+    (r"\b(wire transfer|gift cards?|crypto|cryptocurrency|bitcoin|ethereum|usdt)\b.{0,35}\b(fee to (claim|release)|payment address|gift card codes?)\b", "Requests payment via a hard-to-reverse method"),
+    (r"\b(buy|purchase)\b.{0,25}\bgift cards?\b.{0,45}\b(send|share|read|provide)\b", "Requests gift card codes or payment"),
+    (r"\b(buy|purchase)\b.{0,25}\bgift cards?\b.{0,30}\b(to|for)\b.{0,20}\b(verify|claim|release|unlock|fee)\b", "Requests gift card payment under a verification or release pretext"),
     (r"\b(processing |advance |release |clearance )?fee to (release|claim|collect)\b", "Demands advance fee before releasing funds"),
     (r"\b(processing|release|clearance) fee\b", "Demands processing or release fee"),
     (r"\b(send|pay|transfer) (via |through )?(zelle|venmo|cash ?app)\b", "Directs payment through peer-to-peer payment apps"),
+    (r"\b(send|pay|transfer)\s+(?:the\s+)?(?:payment|money|funds)\s+(?:via|through|using)\s+(zelle|venmo|cash ?app)\b", "Directs payment through peer-to-peer payment apps"),
 ]
 
 BILLING_PATTERNS = [
@@ -125,6 +127,13 @@ BILLING_PATTERNS = [
     (r"\b(unauthorized|fraudulent) (transaction|charge|payment|activity)\b", "Claims unauthorized charge or transaction alert"),
     (r"\b(invoice|subscription|renewal) (overdue|renewed|auto-renewal|charged)\b", "References unexpected invoice or subscription charge"),
 ]
+
+PAYMENT_DETAILS_CHANGE_PATTERN = (
+    r"\b(?:updated|new|changed|replacement|revised)\s+"
+    r"(?:(?:our|the|your)\s+)?"
+    r"(?:bank|beneficiary|wire|payment|account)\s+"
+    r"(?:account|details|information|instructions)\b"
+)
 
 INSTITUTION_PATTERNS = [
     (r"\b(chase|bank of america|wells fargo|citibank|citi bank|paypal|venmo|zelle)\b", "financial institution or payment service"),
@@ -188,8 +197,6 @@ def safe_parse_url(raw_url: str):
     except Exception:
         unquoted = cleaned
 
-    has_at_symbol = "@" in unquoted
-
     # Handle schemes that don't necessarily use :// (e.g. javascript:, data:, file:, mailto:)
     scheme_match = re.match(r"^([a-zA-Z][a-zA-Z0-9+\-.]*):", unquoted)
     explicit_scheme = scheme_match.group(1).lower() if scheme_match else None
@@ -213,17 +220,9 @@ def safe_parse_url(raw_url: str):
     try:
         parsed = urlparse(url_to_parse)
         scheme = (parsed.scheme or "").lower()
-        netloc = parsed.netloc or ""
         path = parsed.path or ""
 
-        # Extract host: strip user-info and port
-        if "@" in netloc:
-            # netloc is user:pass@host:port
-            host_part = netloc.split("@")[-1]
-        else:
-            host_part = netloc
-
-        host = host_part.split(":")[0].strip().lower()
+        host = (parsed.hostname or "").strip().lower()
 
         # Check if host is IPv4 or IPv6
         is_ip = False
@@ -241,7 +240,7 @@ def safe_parse_url(raw_url: str):
             "scheme": scheme,
             "host": host,
             "path": path.lower(),
-            "has_at": has_at_symbol,
+            "has_at": "@" in parsed.netloc,
             "is_ip": is_ip,
             "is_malformed": is_malformed,
             "raw": cleaned
@@ -286,6 +285,35 @@ def is_brand_in_path(path: str, brand: str) -> bool:
     return False
 
 
+def _is_one_character_brand_lookalike(host: str, brand: str) -> bool:
+    """Match a brand-like DNS label with one edit, without matching substrings."""
+    for label in host.split("."):
+        for candidate in label.split("-"):
+            if len(candidate) < 5 or abs(len(candidate) - len(brand)) > 1:
+                continue
+            left = right = differences = 0
+            while left < len(candidate) and right < len(brand):
+                if candidate[left] == brand[right]:
+                    left += 1
+                    right += 1
+                    continue
+                differences += 1
+                if differences > 1:
+                    break
+                if len(candidate) > len(brand):
+                    left += 1
+                elif len(brand) > len(candidate):
+                    right += 1
+                else:
+                    left += 1
+                    right += 1
+            if left < len(candidate) or right < len(brand):
+                differences += 1
+            if differences == 1:
+                return True
+    return False
+
+
 def evaluate_rules(message: Optional[str], url: Optional[str]):
     """
     Deterministic rule-based heuristics evaluating suspicious lures and URL properties.
@@ -316,6 +344,7 @@ def evaluate_rules(message: Optional[str], url: Optional[str]):
     has_payment_demand = False
     has_billing_alert = False
     has_institution_lure = False
+    has_payment_details_change = False
 
     if text:
         text_lower = text.lower()
@@ -359,6 +388,13 @@ def evaluate_rules(message: Optional[str], url: Optional[str]):
                 indicator_set.add("References overdue billing, unauthorized transactions, or fake invoice charges")
                 break
 
+        has_payment_details_change = bool(
+            re.search(PAYMENT_DETAILS_CHANGE_PATTERN, text_lower)
+            and re.search(r"\b(?:pay|paying|settle|send|transfer|remit|wire)\b", text_lower)
+        )
+        if has_payment_details_change:
+            indicator_set.add("Requests payment using changed or replacement bank details")
+
         # Check Institution Impersonation in text
         for pattern, brand_type in INSTITUTION_PATTERNS:
             m = re.search(pattern, text_lower)
@@ -377,7 +413,7 @@ def evaluate_rules(message: Optional[str], url: Optional[str]):
                 score += 10
                 indicator_set.add("Contains aggressive capitalization commonly used in high-pressure lures")
 
-        # Context-aware scoring: Credential request + Urgency = High probability phishing
+        # Context-aware scoring: credential requests with pressure are high-risk signals.
         if has_credential and (has_urgency or has_account_threat):
             score += 65
         elif has_credential:
@@ -402,6 +438,9 @@ def evaluate_rules(message: Optional[str], url: Optional[str]):
                 score += 40
             else:
                 score += 25
+
+        if has_payment_details_change:
+            score += 35
 
         # Institution lure compounding
         if has_institution_lure:
@@ -454,6 +493,10 @@ def evaluate_rules(message: Optional[str], url: Optional[str]):
             score += 35
             indicator_set.add(f"URL uses raw IP address ('{host}') instead of a recognized domain")
 
+        if host and any(ord(character) > 127 for character in host):
+            score += 25
+            indicator_set.add("Domain contains internationalized characters that may resemble other letters")
+
         if host and not host_already_scored:
             is_shortener = host in KNOWN_SHORTENERS
             # Link shorteners
@@ -503,6 +546,10 @@ def evaluate_rules(message: Optional[str], url: Optional[str]):
                 if brand_in_host:
                     score += 35
                     indicator_set.add(f"Potential brand spoofing: brand '{brand}' referenced in unverified domain '{host}'")
+                    break
+                elif _is_one_character_brand_lookalike(host, brand):
+                    score += 30
+                    indicator_set.add(f"Possible lookalike spelling of brand '{brand}' in domain '{host}'")
                     break
                 elif brand_in_path:
                     score += 15
@@ -562,14 +609,23 @@ async def analyze(payload: AnalyzeRequest):
     """
     from nebius_client import is_configured, call_nebius, NebiusError
 
+    fallback_reason = "Nebius not configured"
     if is_configured():
         try:
             result = await call_nebius(payload.message, payload.url)
             return result
         except NebiusError as exc:
-            _log.warning("Nebius inference failed, falling back to rules: %s", exc)
+            fallback_reason = "Nebius inference failed"
+            _log.warning(
+                "Nebius inference failed, falling back to rules (%s)",
+                type(exc).__name__,
+            )
 
     result = evaluate_rules(payload.message, payload.url)
+    result["analysis_method"] = (
+        "Deterministic rule-based heuristics "
+        f"({fallback_reason}; local fallback)"
+    )
     return result
 
 

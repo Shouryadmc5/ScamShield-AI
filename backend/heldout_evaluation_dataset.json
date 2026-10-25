@@ -1,0 +1,183 @@
+[
+  {
+    "id": "holdout-benign-01",
+    "category": "ordinary_message",
+    "input": {
+      "message": "The design review moved to Tuesday at 2pm. The agenda is unchanged."
+    },
+    "expected_label": "benign",
+    "explanation": "Routine scheduling note with no suspicious request."
+  },
+  {
+    "id": "holdout-benign-02",
+    "category": "contextual_urgency",
+    "input": {
+      "message": "Urgent reminder from my sister: please bring the folding chairs to the picnic."
+    },
+    "expected_label": "benign",
+    "explanation": "Uses urgent language in a casual request with no account, payment, or sensitive-data lure."
+  },
+  {
+    "id": "holdout-benign-03",
+    "category": "financial_discussion",
+    "input": {
+      "message": "The finance class compared Bitcoin and bank transfers in today's lecture."
+    },
+    "expected_label": "benign",
+    "explanation": "Discusses payment methods without asking anyone to send money."
+  },
+  {
+    "id": "holdout-benign-04",
+    "category": "gift_card_mention",
+    "input": {
+      "message": "I bought a gift card for my niece's birthday and wrapped it with her present."
+    },
+    "expected_label": "benign",
+    "explanation": "Describes an ordinary completed gift purchase without requesting payment or codes."
+  },
+  {
+    "id": "holdout-benign-05",
+    "category": "legitimate_brand_url",
+    "input": {
+      "url": "https://www.netflix.com/browse"
+    },
+    "expected_label": "benign",
+    "explanation": "HTTPS URL on an official Netflix domain."
+  },
+  {
+    "id": "holdout-benign-06",
+    "category": "legitimate_brand_url",
+    "input": {
+      "url": "https://support.microsoft.com/account-billing"
+    },
+    "expected_label": "benign",
+    "explanation": "HTTPS URL on an official Microsoft domain."
+  },
+  {
+    "id": "holdout-benign-07",
+    "category": "unusual_but_unverified_url",
+    "input": {
+      "url": "https://community.example.xyz/events"
+    },
+    "expected_label": "benign",
+    "explanation": "Unfamiliar TLD alone is not proof of a scam; no other suspicious signal is present."
+  },
+  {
+    "id": "holdout-benign-08",
+    "category": "benign_shortened_url",
+    "input": {
+      "url": "https://t.co/team-retreat-agenda"
+    },
+    "expected_label": "benign",
+    "explanation": "A shortened link with non-sensitive context; shorteners alone are not proof of maliciousness."
+  },
+  {
+    "id": "holdout-benign-09",
+    "category": "payment_acknowledgement",
+    "input": {
+      "message": "Thanks for covering dinner. I received your Venmo payment."
+    },
+    "expected_label": "benign",
+    "explanation": "Acknowledges a received payment without soliciting credentials or further funds."
+  },
+  {
+    "id": "holdout-benign-10",
+    "category": "routine_notification",
+    "input": {
+      "message": "Your library book is due next Thursday. Renew it through the library app if you need more time."
+    },
+    "expected_label": "benign",
+    "explanation": "Routine library reminder without a threat, payment demand, or credential request."
+  },
+  {
+    "id": "holdout-scam-01",
+    "category": "lookalike_domain",
+    "input": {
+      "url": "https://paypa1-support.example/account"
+    },
+    "expected_label": "scam",
+    "explanation": "Domain contains a one-character lookalike for a known payment brand and account-related path."
+  },
+  {
+    "id": "holdout-scam-02",
+    "category": "delivery_payment_lure",
+    "input": {
+      "message": "Your parcel is held. Pay the redelivery charge through this link today.",
+      "url": "https://usps-redelivery.example/fee"
+    },
+    "expected_label": "scam",
+    "explanation": "Unexpected delivery charge paired with a delivery-service brand lure."
+  },
+  {
+    "id": "holdout-scam-03",
+    "category": "advance_fee",
+    "input": {
+      "message": "You were selected for a cash award. Pay the clearance fee to release your winnings."
+    },
+    "expected_label": "scam",
+    "explanation": "Combines an unsolicited prize claim with a fee required to release money."
+  },
+  {
+    "id": "holdout-scam-04",
+    "category": "credential_harvesting",
+    "input": {
+      "message": "Your payroll access was disabled. Enter your login credentials to restore access now."
+    },
+    "expected_label": "scam",
+    "explanation": "Threatens loss of access and requests login credentials."
+  },
+  {
+    "id": "holdout-scam-05",
+    "category": "fake_invoice",
+    "input": {
+      "message": "Your invoice has an unauthorized charge. Send payment through Cash App to avoid collection."
+    },
+    "expected_label": "scam",
+    "explanation": "Unexpected charge claim plus a peer-to-peer payment request and pressure."
+  },
+  {
+    "id": "holdout-scam-06",
+    "category": "crypto_recovery",
+    "input": {
+      "message": "Transfer bitcoin to this recovery wallet to unlock your frozen funds."
+    },
+    "expected_label": "scam",
+    "explanation": "Requests an irreversible cryptocurrency transfer to release purported funds."
+  },
+  {
+    "id": "holdout-scam-07",
+    "category": "brand_impersonation",
+    "input": {
+      "url": "https://secure-chase-review.example/signin"
+    },
+    "expected_label": "scam",
+    "explanation": "Unverified domain uses a bank brand and sign-in lure."
+  },
+  {
+    "id": "holdout-scam-08",
+    "category": "deceptive_authority_url",
+    "input": {
+      "url": "https://irs.gov@tax-refund-check.example/claim"
+    },
+    "expected_label": "scam",
+    "explanation": "User-info notation makes the actual host differ from the government-looking text."
+  },
+  {
+    "id": "holdout-scam-09",
+    "category": "one_time_code_theft",
+    "input": {
+      "message": "Reply with the one-time passcode we just sent to finish your account verification."
+    },
+    "expected_label": "scam",
+    "explanation": "Requests a one-time authentication code."
+  },
+  {
+    "id": "holdout-scam-10",
+    "category": "gift_card_payment",
+    "input": {
+      "message": "Buy gift cards to verify the account and read the redemption codes to our agent."
+    },
+    "expected_label": "scam",
+    "explanation": "Requests gift-card purchases and disclosure of their redemption codes."
+  }
+]

@@ -12,7 +12,7 @@ The client is fully optional:
   - If a request fails for any reason, a NebiusError is raised so the
     caller can log and fall back gracefully.
 
-No user data is ever sent unless the key is explicitly set.
+No user data is ever sent unless both the API key and model are configured.
 """
 
 from __future__ import annotations
@@ -63,8 +63,11 @@ class NebiusError(RuntimeError):
 
 
 def is_configured() -> bool:
-    """Return True only when a non-empty NEBIUS_API_KEY is present in the env."""
-    return bool(os.environ.get("NEBIUS_API_KEY", "").strip())
+    """Return True only when both the API key and model are configured."""
+    return bool(
+        os.environ.get("NEBIUS_API_KEY", "").strip()
+        and os.environ.get("NEBIUS_MODEL", "").strip()
+    )
 
 
 def get_model() -> str:
@@ -143,20 +146,30 @@ async def call_nebius(message: str | None, url: str | None) -> dict[str, Any]:
         resp_json = response.json()
         raw_content: str = resp_json["choices"][0]["message"]["content"]
         llm_data = json.loads(raw_content)
-    except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
-        raise NebiusError(f"Could not parse Nebius response: {exc}") from exc
+    except (KeyError, IndexError, TypeError, ValueError) as exc:
+        raise NebiusError("Could not parse Nebius response.") from exc
 
     if not isinstance(llm_data, dict):
         raise NebiusError("Could not parse Nebius response: expected a JSON object.")
 
-    # Normalise and validate the LLM output into the expected schema
-    try:
-        risk_score = max(0, min(100, int(llm_data.get("risk_score", 0))))
-        indicators = [str(i) for i in llm_data.get("indicators", [])]
-        recommendation = str(llm_data.get("recommendation", ""))
-    except (TypeError, ValueError, OverflowError) as exc:
-        raise NebiusError("Nebius response contained invalid field types.") from exc
+    # Missing optional fields retain the established defaults; malformed types fail closed.
+    if "risk_score" not in llm_data:
+        raise NebiusError("Nebius response did not include a risk score.")
+    score_value = llm_data["risk_score"]
+    indicators_value = llm_data.get("indicators", [])
+    recommendation_value = llm_data.get("recommendation", "")
+    if (
+        isinstance(score_value, bool)
+        or not isinstance(score_value, int)
+        or not isinstance(indicators_value, list)
+        or not all(isinstance(indicator, str) for indicator in indicators_value)
+        or not isinstance(recommendation_value, str)
+    ):
+        raise NebiusError("Nebius response contained invalid field types.")
 
+    risk_score = max(0, min(100, score_value))
+    indicators = indicators_value
+    recommendation = recommendation_value
     risk_level = "Low" if risk_score < 30 else ("Medium" if risk_score < 60 else "High")
 
     return {

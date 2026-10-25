@@ -74,16 +74,17 @@ class TestNebiusConfiguration(unittest.TestCase):
             if original is not None:
                 os.environ["NEBIUS_API_KEY"] = original
 
-    def test_configured_when_key_present(self):
-        original = os.environ.get("NEBIUS_API_KEY")
-        os.environ["NEBIUS_API_KEY"] = "test-key-abc123"
-        try:
+    def test_configured_when_key_and_model_are_present(self):
+        with patch.dict(os.environ, {
+            "NEBIUS_API_KEY": "test-key-abc123",
+            "NEBIUS_MODEL": "configured-model-id",
+        }):
             self.assertTrue(is_configured())
-        finally:
-            if original is None:
-                del os.environ["NEBIUS_API_KEY"]
-            else:
-                os.environ["NEBIUS_API_KEY"] = original
+
+    def test_not_configured_when_model_is_missing(self):
+        with patch.dict(os.environ, {"NEBIUS_API_KEY": "test-key-abc123"}):
+            os.environ.pop("NEBIUS_MODEL", None)
+            self.assertFalse(is_configured())
 
     def test_not_configured_when_key_is_whitespace(self):
         original = os.environ.get("NEBIUS_API_KEY")
@@ -166,14 +167,14 @@ class TestCallNebiusWithMockedHTTP(unittest.TestCase):
     Mock httpx.AsyncClient to verify response parsing without network calls.
     """
 
-    def _run_with_mock_response(self, api_key: str, status_code: int, body: dict | str):
+    def _run_with_mock_response(self, api_key: str, status_code: int, body: dict | str | bytes):
         """Patch httpx.AsyncClient inside nebius_client and run call_nebius."""
         import nebius_client as nc
 
         class MockResponse:
             def __init__(self):
                 self.status_code = status_code
-                self._body = body if isinstance(body, str) else json.dumps(body)
+                self._body = body if isinstance(body, (str, bytes)) else json.dumps(body)
                 self.text = self._body
             def json(self):
                 return json.loads(self._body)
@@ -283,6 +284,11 @@ class TestCallNebiusWithMockedHTTP(unittest.TestCase):
             self._run_with_mock_response("valid-key", 200, [])
         self.assertIn("parse", str(ctx.exception).lower())
 
+    def test_non_utf8_response_raises_nebius_error(self):
+        with self.assertRaises(NebiusError) as ctx:
+            self._run_with_mock_response("valid-key", 200, b"\xff")
+        self.assertIn("parse", str(ctx.exception).lower())
+
     def test_non_object_model_content_raises_nebius_error(self):
         api_response = {"choices": [{"message": {"content": "[]"}}]}
         with self.assertRaises(NebiusError) as ctx:
@@ -306,6 +312,21 @@ class TestCallNebiusWithMockedHTTP(unittest.TestCase):
         with self.assertRaises(NebiusError) as ctx:
             self._run_with_mock_response("valid-key", 200, api_response)
         self.assertNotIn(private_content, str(ctx.exception))
+
+    def test_invalid_indicator_and_recommendation_types_fall_back(self):
+        invalid_fields = (
+            {"risk_score": 20, "indicators": "not-a-list", "recommendation": ""},
+            {"risk_score": 20, "indicators": [], "recommendation": {"private": "content"}},
+            {"risk_score": True, "indicators": [], "recommendation": ""},
+        )
+        for llm_json in invalid_fields:
+            with self.subTest(llm_json=llm_json):
+                api_response = {
+                    "choices": [{"message": {"content": json.dumps(llm_json)}}]
+                }
+                with self.assertRaises(NebiusError) as ctx:
+                    self._run_with_mock_response("valid-key", 200, api_response)
+                self.assertIn("invalid field types", str(ctx.exception))
 
     def test_timeout_raises_nebius_error(self):
         import nebius_client as nc
@@ -344,6 +365,14 @@ class TestCallNebiusWithMockedHTTP(unittest.TestCase):
         self.assertEqual(result["risk_score"], 50)
         self.assertIsInstance(result["indicators"], list)
         self.assertIsInstance(result["recommendation"], str)
+
+    def test_missing_risk_score_is_rejected(self):
+        api_response = {
+            "choices": [{"message": {"content": json.dumps({"indicators": [], "recommendation": ""})}}]
+        }
+        with self.assertRaises(NebiusError) as ctx:
+            self._run_with_mock_response("valid-key", 200, api_response)
+        self.assertIn("risk score", str(ctx.exception).lower())
 
 
 if __name__ == "__main__":

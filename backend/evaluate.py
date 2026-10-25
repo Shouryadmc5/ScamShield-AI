@@ -15,7 +15,8 @@ Binary Classification Decision Policy:
 import json
 import os
 import sys
-from typing import Any, Dict, List, Tuple
+import argparse
+from typing import Any, Dict, List
 
 # Ensure backend directory is in path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -23,7 +24,14 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from main import evaluate_rules
 
 DEFAULT_DATASET_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "evaluation_dataset.json")
+HELD_OUT_DATASET_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "heldout_evaluation_dataset.json"
+)
 POSITIVE_THRESHOLD = 30  # Scores >= 30 are treated as Positive (Scam/Suspicious)
+DATASET_LIMITATION = (
+    "Synthetic, manually authored examples; not independently sourced or representative "
+    "of real-world prevalence. Metrics do not establish production accuracy."
+)
 
 
 def load_dataset(filepath: str) -> List[Dict[str, Any]]:
@@ -38,13 +46,17 @@ def load_dataset(filepath: str) -> List[Dict[str, Any]]:
         raise ValueError("Dataset root must be a list of benchmark items.")
 
     validated: List[Dict[str, Any]] = []
+    seen_ids = set()
     for idx, item in enumerate(data):
         if not isinstance(item, dict):
             raise ValueError(f"Dataset entry at index {idx} is not an object.")
 
         item_id = item.get("id")
-        if not item_id:
+        if not isinstance(item_id, str) or not item_id.strip():
             raise ValueError(f"Dataset entry at index {idx} missing 'id'.")
+        if item_id in seen_ids:
+            raise ValueError(f"Duplicate dataset id '{item_id}'.")
+        seen_ids.add(item_id)
 
         expected = item.get("expected_label")
         if expected not in ["benign", "scam"]:
@@ -55,10 +67,20 @@ def load_dataset(filepath: str) -> List[Dict[str, Any]]:
         inp = item.get("input")
         if not isinstance(inp, dict):
             raise ValueError(f"Entry '{item_id}' has invalid 'input' field (must be dict).")
+        category = item.get("category", "unclassified")
+        explanation = item.get("explanation", "")
+        if not isinstance(category, str) or not category.strip():
+            raise ValueError(f"Entry '{item_id}' category must be a non-empty string.")
+        if not isinstance(explanation, str):
+            raise ValueError(f"Entry '{item_id}' explanation must be a string.")
 
         msg = inp.get("message")
         url = inp.get("url")
-        if not msg and not url:
+        if msg is not None and not isinstance(msg, str):
+            raise ValueError(f"Entry '{item_id}' message must be a string.")
+        if url is not None and not isinstance(url, str):
+            raise ValueError(f"Entry '{item_id}' URL must be a string.")
+        if not (msg and msg.strip()) and not (url and url.strip()):
             raise ValueError(f"Entry '{item_id}' input must provide at least 'message' or 'url'.")
 
         validated.append(item)
@@ -70,7 +92,11 @@ def run_benchmark(dataset: List[Dict[str, Any]], threshold: int = POSITIVE_THRES
     """
     Executes rules against each benchmark item and computes metrics.
     """
+    if not isinstance(threshold, int) or not 0 <= threshold <= 100:
+        raise ValueError("threshold must be an integer between 0 and 100.")
+
     tp, fp, tn, fn = 0, 0, 0, 0
+    label_distribution = {"benign": 0, "scam": 0}
     false_positives: List[Dict[str, Any]] = []
     false_negatives: List[Dict[str, Any]] = []
 
@@ -81,6 +107,7 @@ def run_benchmark(dataset: List[Dict[str, Any]], threshold: int = POSITIVE_THRES
         item_id = item["id"]
         category = item.get("category", "unclassified")
         expected = item["expected_label"]
+        label_distribution[expected] += 1
         inp = item["input"]
 
         res = evaluate_rules(inp.get("message"), inp.get("url"))
@@ -128,6 +155,8 @@ def run_benchmark(dataset: List[Dict[str, Any]], threshold: int = POSITIVE_THRES
 
     return {
         "total": total,
+        "threshold": threshold,
+        "label_distribution": label_distribution,
         "confusion_matrix": {"TP": tp, "FP": fp, "TN": tn, "FN": fn},
         "metrics": {
             "accuracy": round(accuracy, 4),
@@ -148,8 +177,10 @@ def format_report(results: Dict[str, Any]) -> str:
         "============================================================",
         "             SCAMSHIELD AI BENCHMARK REPORT                 ",
         "============================================================",
+        f"Dataset: {results.get('dataset_name', 'synthetic benchmark')}",
         f"Total Samples Evaluated: {results['total']}",
-        f"Decision Policy: 'scam' if risk_score >= {POSITIVE_THRESHOLD} (Medium/High), else 'benign' (Low)",
+        f"Label Distribution: benign={results['label_distribution']['benign']}, scam={results['label_distribution']['scam']}",
+        f"Decision Policy: 'scam' if risk_score >= {results['threshold']} (Medium/High), else 'benign' (Low)",
         "",
         "--- Confusion Matrix ---",
         f"  True Positives  (TP) : {cm['TP']:2d}   |   False Positives (FP) : {cm['FP']:2d}",
@@ -183,17 +214,34 @@ def format_report(results: Dict[str, Any]) -> str:
             lines.append(f"    Score: {fn['score']} | Indicators: {fn['indicators']}")
 
     lines.append("============================================================")
-    lines.append("Notice: Initial synthetic benchmark for local regression tracking.")
-    lines.append("Does not constitute proof of real-world production accuracy.")
+    lines.append(f"Limitations: {DATASET_LIMITATION}")
     lines.append("============================================================")
     return "\n".join(lines)
 
 
 if __name__ == "__main__":
-    dataset_file = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_DATASET_PATH
+    parser = argparse.ArgumentParser(description="Evaluate ScamShield's deterministic rules on a JSON dataset.")
+    parser.add_argument("dataset", nargs="?", help="Optional benchmark JSON path.")
+    parser.add_argument(
+        "--held-out",
+        action="store_true",
+        help="Evaluate the separate held-out synthetic dataset.",
+    )
+    args = parser.parse_args()
+    if args.held_out and args.dataset:
+        parser.error("provide either --held-out or a dataset path, not both.")
+    dataset_file = (
+        HELD_OUT_DATASET_PATH if args.held_out else args.dataset or DEFAULT_DATASET_PATH
+    )
     try:
         items = load_dataset(dataset_file)
         res = run_benchmark(items)
+        if args.held_out:
+            res["dataset_name"] = "separate held-out synthetic evaluation set"
+        elif os.path.abspath(dataset_file) == os.path.abspath(DEFAULT_DATASET_PATH):
+            res["dataset_name"] = "original synthetic regression set"
+        else:
+            res["dataset_name"] = "custom dataset"
         print(format_report(res))
     except Exception as e:
         print(f"Error running benchmark: {e}", file=sys.stderr)
