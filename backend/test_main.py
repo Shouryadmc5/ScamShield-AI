@@ -397,6 +397,15 @@ class TestDetectorImprovements(unittest.TestCase):
         with self.assertRaises(ValidationError):
             AnalyzeRequest(url="https://example.com/" + "a" * 2048)
 
+    def test_invalid_urls_are_rejected_but_dangerous_schemes_remain_analyzable(self):
+        for url in ("not a url", "https://example.com:invalid", "http:/example.com"):
+            with self.subTest(url=url):
+                with self.assertRaisesRegex(ValidationError, "Target URL must be valid"):
+                    AnalyzeRequest(url=url)
+
+        request = AnalyzeRequest(url="javascript:alert(1)")
+        self.assertEqual(request.url, "javascript:alert(1)")
+
     def test_malformed_url_handling(self):
         # URLs with empty host or malformed format
         res = evaluate_rules(None, "http://")
@@ -513,6 +522,13 @@ class TestDetectorImprovements(unittest.TestCase):
             )
             self.assertEqual(status_oversized, 422)
             self.assertIn("detail", data_oversized)
+
+            # Invalid URLs receive an actionable validation error rather than a low-risk result.
+            status_invalid_url, _, data_invalid_url = loop.run_until_complete(
+                _dispatch_asgi({"url": "not a url"})
+            )
+            self.assertEqual(status_invalid_url, 422)
+            self.assertIn("Target URL must be valid", data_invalid_url["detail"][0]["msg"])
         finally:
             loop.close()
 

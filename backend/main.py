@@ -163,6 +163,8 @@ class AnalyzeRequest(BaseModel):
         u = (self.url or "").strip()
         if not msg and not u:
             raise ValueError("At least one non-empty field ('message' or 'url') must be provided.")
+        if u:
+            validate_analysis_url(u)
         return self
 
 
@@ -223,6 +225,7 @@ def safe_parse_url(raw_url: str):
         path = parsed.path or ""
 
         host = (parsed.hostname or "").strip().lower()
+        authority = parsed.netloc.rsplit("@", 1)[-1]
 
         # Check if host is IPv4 or IPv6
         is_ip = False
@@ -233,8 +236,25 @@ def safe_parse_url(raw_url: str):
             except ValueError:
                 is_ip = False
 
-        # If scheme is http/https but no host could be parsed, it is malformed (e.g. 'http://' or 'https://')
-        is_malformed = bool(scheme in ("http", "https") and not host)
+        try:
+            parsed.port
+            invalid_port = authority.endswith(":")
+        except ValueError:
+            invalid_port = True
+
+        invalid_host = bool(
+            host
+            and (
+                any(character.isspace() or ord(character) < 33 for character in host)
+                or any(character in '<>"{}|\\^`%' for character in host)
+            )
+        )
+        is_malformed = (
+            (scheme in ("http", "https") and not host)
+            or invalid_port
+            or invalid_host
+            or any(character.isspace() or ord(character) < 32 for character in cleaned)
+        )
 
         return {
             "scheme": scheme,
@@ -255,6 +275,30 @@ def safe_parse_url(raw_url: str):
             "is_malformed": True,
             "raw": cleaned
         }
+
+
+def validate_analysis_url(raw_url: str) -> None:
+    """Reject malformed URL input without resolving or opening the destination."""
+    if any(character.isspace() or ord(character) < 32 for character in raw_url):
+        raise ValueError(
+            "Target URL must be valid, such as example.com or https://example.com."
+        )
+
+    scheme_match = re.match(r"^([a-zA-Z][a-zA-Z0-9+\-.]*):", raw_url)
+    if scheme_match and scheme_match.group(1).lower() in SUSPICIOUS_SCHEMES:
+        return
+
+    if re.match(r"^https?:", raw_url, re.IGNORECASE) and not re.match(
+        r"^https?://", raw_url, re.IGNORECASE
+    ):
+        raise ValueError(
+            "Target URL must be valid, such as example.com or https://example.com."
+        )
+
+    if safe_parse_url(raw_url)["is_malformed"]:
+        raise ValueError(
+            "Target URL must be valid, such as example.com or https://example.com."
+        )
 
 
 def extract_base_domain(host: str) -> str:

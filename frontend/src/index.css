@@ -1,21 +1,36 @@
 :root {
   font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-  color: #e8ece9;
-  background: #090b0c;
+  color: #F2F5EE;
+  background: var(--bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  --bg: #090b0c;
-  --panel: #111516;
-  --panel-raised: #161b1c;
-  --line: rgba(215, 230, 223, 0.14);
-  --text: #e8ece9;
-  --muted: #a1aaa6;
-  --dim: #79837e;
-  --orange: #f27347;
-  --cyan: #9be1dc;
+  --bg: #080A08;
+  --panel: #111511;
+  --panel-raised: #171C17;
+  --line: #292F28;
+  --text: #F2F5EE;
+  --muted: #B2B9AD;
+  --dim: #929A8E;
+  --accent: #B7FF4A;
+  --orange: var(--accent);
+  --cyan: #A7B19E;
+  --risk-high: #FF5B64;
+  --risk-medium: #FFC857;
+  --risk-low: #65DDA0;
   --mono: 'Cascadia Code', Consolas, monospace;
   --display: 'Segoe UI Variable Display', 'Segoe UI', 'Helvetica Neue', sans-serif;
+  --space-1: 0.45rem;
+  --space-2: 0.75rem;
+  --space-3: 1rem;
+  --space-4: 1.5rem;
+  --space-5: 2rem;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --shadow-panel: 0 28px 80px rgba(0, 0, 0, 0.34);
+  --motion-fast: 160ms;
+  --motion-base: 240ms;
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
   font-optical-sizing: auto;
 }
 
@@ -36,7 +51,7 @@ body {
   overflow-x: hidden;
   background: var(--bg);
   color: var(--text);
-  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  font-family: var(--display);
 }
 
 body::after {
@@ -45,7 +60,7 @@ body::after {
   pointer-events: none;
   inset: 0;
   content: '';
-  opacity: 0.12;
+  opacity: 0.08;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.92' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.18'/%3E%3C/svg%3E");
 }
 
@@ -69,13 +84,13 @@ button:focus-visible,
 a:focus-visible,
 input:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid var(--cyan);
+  outline: 2px solid var(--accent);
   outline-offset: 4px;
 }
 
 ::selection {
-  color: #091010;
-  background: var(--cyan);
+  color: var(--bg);
+  background: var(--accent);
 }
 
 #root {

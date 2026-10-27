@@ -6,14 +6,13 @@ import {
   MathUtils,
   MeshBasicMaterial,
   Shape,
-  Vector2,
 } from 'three';
 import type { Group, Mesh } from 'three';
 
 const SIGNALS = [
-  { position: [0, 1.78, 0.06] as [number, number, number], color: '#f2774a', scale: 0.06 },
-  { position: [-1.65, -0.52, 0.1] as [number, number, number], color: '#85e1df', scale: 0.04 },
-  { position: [1.48, 0.92, -0.08] as [number, number, number], color: '#e7d4b7', scale: 0.035 },
+  { position: [0, 1.78, 0.06] as [number, number, number], color: '#B7FF4A', scale: 0.06 },
+  { position: [-1.65, -0.52, 0.1] as [number, number, number], color: '#929A8E', scale: 0.04 },
+  { position: [1.48, 0.92, -0.08] as [number, number, number], color: '#FF5B64', scale: 0.035 },
 ];
 
 function Shield() {
@@ -40,14 +39,32 @@ function Shield() {
       curveSegments: 10,
     });
   }, []);
-  const innerShape = useMemo(() => new Shape([
-    new Vector2(0, 0.76),
-    new Vector2(0.52, 0.52),
-    new Vector2(0.48, -0.08),
-    new Vector2(0, -0.82),
-    new Vector2(-0.48, -0.08),
-    new Vector2(-0.52, 0.52),
-  ]), []);
+  const innerShape = useMemo(() => {
+    const shape = new Shape();
+    shape.moveTo(0.55, 0.62);
+    shape.lineTo(-0.43, 0.62);
+    shape.lineTo(-0.58, 0.47);
+    shape.lineTo(-0.58, 0.17);
+    shape.lineTo(-0.43, 0.02);
+    shape.lineTo(0.38, 0.02);
+    shape.lineTo(0.48, -0.08);
+    shape.lineTo(0.48, -0.18);
+    shape.lineTo(0.38, -0.28);
+    shape.lineTo(-0.58, -0.28);
+    shape.lineTo(-0.58, -0.48);
+    shape.lineTo(-0.43, -0.62);
+    shape.lineTo(0.43, -0.62);
+    shape.lineTo(0.58, -0.48);
+    shape.lineTo(0.58, -0.02);
+    shape.lineTo(0.43, 0.13);
+    shape.lineTo(-0.38, 0.13);
+    shape.lineTo(-0.48, 0.23);
+    shape.lineTo(-0.48, 0.32);
+    shape.lineTo(-0.38, 0.42);
+    shape.lineTo(0.55, 0.42);
+    shape.closePath();
+    return shape;
+  }, []);
 
   useFrame(({ pointer }, delta) => {
     timeRef.current += delta;
@@ -76,41 +93,41 @@ function Shield() {
   });
 
   return (
-    <group>
+    <group scale={0.72}>
       <mesh rotation={[0.08, 0, 0]} scale={1.62}>
         <torusGeometry args={[1.08, 0.003, 6, 88]} />
-        <meshBasicMaterial color="#6ccbd1" transparent opacity={0.42} />
+        <meshBasicMaterial color="#929A8E" transparent opacity={0.24} />
       </mesh>
       <mesh rotation={[0.72, 0.35, 0.2]} scale={1.94}>
         <torusGeometry args={[1.08, 0.0025, 6, 88]} />
-        <meshBasicMaterial color="#fa6938" transparent opacity={0.58} />
+        <meshBasicMaterial color="#B7FF4A" transparent opacity={0.35} />
       </mesh>
       <group ref={shieldRef} rotation={[0, -0.24, -0.06]}>
         <mesh geometry={geometry} position={[0, 0, -0.09]}>
           <meshPhysicalMaterial
-            color="#8ddce0"
-            emissive="#13565c"
-            emissiveIntensity={0.38}
+            color="#A3C878"
+            emissive="#354b19"
+            emissiveIntensity={0.08}
             metalness={0.18}
-            roughness={0.18}
-            transmission={0.52}
-            thickness={0.7}
+            roughness={0.3}
+            transmission={0.72}
+            thickness={0.4}
             transparent
-            opacity={0.76}
+            opacity={0.42}
             side={DoubleSide}
           />
         </mesh>
         <mesh position={[0, 0, 0.15]}>
           <shapeGeometry args={[innerShape]} />
-          <meshBasicMaterial color="#091315" transparent opacity={0.38} side={DoubleSide} />
+          <meshBasicMaterial color="#080A08" side={DoubleSide} />
         </mesh>
         <mesh ref={beamRef} position={[0, 0, 0.18]}>
           <boxGeometry args={[1.64, 0.012, 0.018]} />
-          <meshBasicMaterial color="#96f0e8" transparent opacity={0.55} />
+          <meshBasicMaterial color="#F2F5EE" transparent opacity={0.38} />
         </mesh>
         <mesh position={[0, -0.02, 0.19]}>
           <torusGeometry args={[0.19, 0.014, 8, 32, Math.PI]} />
-          <meshBasicMaterial color="#f2774a" transparent opacity={0.9} />
+          <meshBasicMaterial color="#080A08" transparent opacity={0.9} />
         </mesh>
       </group>
       <OrbitSignals />
@@ -176,12 +193,12 @@ export default function HeroScene() {
       camera={{ position: [0, 0, 5.4], fov: 38 }}
       gl={{ alpha: true, antialias: true, powerPreference: 'low-power' }}
       frameloop="demand"
-      fallback={<div className="static-shield" aria-hidden="true"><span>◇</span></div>}
+      fallback={<div className="static-shield" aria-hidden="true"><svg viewBox="0 0 32 36"><path d="M16 2 29 6v10c0 8-5.3 14.3-13 18C8.3 30.3 3 24 3 16V6L16 2Z" /><path d="M22 10h-9l-2 2v3l2 2h7l2 2v3l-2 2H10" /></svg></div>}
       aria-hidden="true"
     >
       <ambientLight intensity={0.8} />
-      <pointLight position={[3, 2, 4]} color="#75e4e0" intensity={34} />
-      <pointLight position={[-3, -2, 2]} color="#f26e43" intensity={20} />
+      <pointLight position={[3, 2, 4]} color="#B7FF4A" intensity={24} />
+      <pointLight position={[-3, -2, 2]} color="#929A8E" intensity={12} />
       <FrameDriver />
       <Shield />
     </Canvas>

@@ -170,12 +170,24 @@ function scrollToAnalyzer(lenis: Lenis | null) {
     lenis.scrollTo('#analyzer', { offset: -28, duration: 1.05 });
     return;
   }
-  document.querySelector('#analyzer')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+  document.querySelector('#analyzer')?.scrollIntoView({ behavior, block: 'start' });
+}
+
+function BrandLockup() {
+  return (
+    <>
+      <img className="wordmark-mark" src="/scamshield-mark.svg" alt="" />
+      <span className="wordmark-name">SCAMSHIELD</span>
+      <span className="wordmark-ai">AI</span>
+    </>
+  );
 }
 
 function App() {
   const pageRef = useRef<HTMLDivElement>(null);
   const lenisRef = useRef<Lenis | null>(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [message, setMessage] = useState('');
   const [url, setUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -208,73 +220,77 @@ function App() {
     const tick = (time: number) => lenis.raf(time * 1000);
     lenis.on('scroll', syncScrollTrigger);
     gsap.ticker.add(tick);
-    gsap.ticker.lagSmoothing(0);
     return () => {
       lenis.off('scroll', syncScrollTrigger);
       gsap.ticker.remove(tick);
       lenis.destroy();
       lenisRef.current = null;
-      ScrollTrigger.getAll().forEach((trigger) => trigger.kill());
     };
   }, [reducedMotion]);
 
   useLayoutEffect(() => {
     if (reducedMotion || !pageRef.current) return undefined;
+    let revertStoryMedia = () => {};
     const context = gsap.context(() => {
-      gsap.from('.hero-copy > *', {
-        y: 34,
-        opacity: 0,
-        duration: 0.9,
-        stagger: 0.11,
-        ease: 'power3.out',
-        delay: 0.15,
-      });
-      gsap.from('.hero-visual', {
-        scale: 0.88,
-        opacity: 0,
-        duration: 1.2,
-        ease: 'power3.out',
-        delay: 0.25,
-      });
       gsap.utils.toArray<HTMLElement>('[data-reveal]').forEach((element) => {
         gsap.from(element, {
-          y: 44,
+          y: 30,
           opacity: 0,
-          duration: 0.8,
+          duration: 0.7,
           ease: 'power3.out',
-          scrollTrigger: { trigger: element, start: 'top 84%', once: true },
+          scrollTrigger: { trigger: element, start: 'top 86%', once: true },
         });
       });
-      if (window.matchMedia('(min-width: 641px)').matches) {
-        const story = gsap.timeline({
+      gsap.from('.signal-note', {
+        x: 16,
+        opacity: 0,
+        duration: 0.6,
+        stagger: 0.12,
+        ease: 'power2.out',
+        scrollTrigger: { trigger: '.investigation-scene', start: 'top 78%', once: true },
+      });
+      const storyMedia = gsap.matchMedia();
+      revertStoryMedia = () => storyMedia.revert();
+      storyMedia.add('(min-width: 901px) and (prefers-reduced-motion: no-preference)', () => {
+        const storySection = pageRef.current?.querySelector<HTMLElement>('.story-section');
+        const viewport = storySection?.querySelector<HTMLElement>('.story-track-frame');
+        const track = storySection?.querySelector<HTMLElement>('.story-track');
+        if (!storySection || !viewport || !track) return undefined;
+
+        storySection.classList.add('is-guided');
+        const horizontalDistance = () => Math.max(0, track.scrollWidth - viewport.clientWidth);
+        gsap.to(track, {
+          x: () => -horizontalDistance(),
+          ease: 'none',
           scrollTrigger: {
-            trigger: '.story-section',
+            trigger: storySection,
+            pin: viewport,
             start: 'top top',
-            end: '+=1750',
-            pin: '.story-stage',
-            scrub: 0.7,
+            end: () => `+=${horizontalDistance()}`,
+            scrub: 0.65,
             anticipatePin: 1,
+            invalidateOnRefresh: true,
           },
         });
-        story
-          .fromTo('.story-word', { yPercent: 80, opacity: 0.1 }, { yPercent: 0, opacity: 1, stagger: 0.12, duration: 0.8 })
-          .fromTo('.story-step[data-step="1"]', { opacity: 0.25, x: 26 }, { opacity: 1, x: 0, duration: 0.45 }, 0.55)
-          .fromTo('.story-signal', { scaleX: 0, transformOrigin: 'left center' }, { scaleX: 1, duration: 0.5 }, 0.95)
-          .fromTo('.story-step[data-step="2"]', { opacity: 0.25, x: 26 }, { opacity: 1, x: 0, duration: 0.45 }, 1.1)
-          .fromTo('.story-evidence', { y: 36, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6 }, 1.55)
-          .fromTo('.story-step[data-step="3"]', { opacity: 0.25, x: 26 }, { opacity: 1, x: 0, duration: 0.45 }, 1.9)
-          .fromTo('.story-map-path', { strokeDasharray: 1, strokeDashoffset: 1 }, { strokeDashoffset: 0, duration: 0.9 }, 0.8)
-          .fromTo('.story-map-node', { scale: 0.5, opacity: 0.3 }, { scale: 1, opacity: 1, stagger: 0.08, duration: 0.35 }, 1.25);
-      } else {
-        gsap.set('.story-step, .story-evidence', { opacity: 1, clearProps: 'transform' });
-      }
-      gsap.to('.hero-grid', {
-        yPercent: 10,
-        ease: 'none',
-        scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: true },
+        gsap.fromTo('.story-progress-fill', { scaleX: 0 }, {
+          scaleX: 1,
+          transformOrigin: 'left center',
+          ease: 'none',
+          scrollTrigger: {
+            trigger: storySection,
+            start: 'top top',
+            end: () => `+=${horizontalDistance()}`,
+            scrub: 0.65,
+            invalidateOnRefresh: true,
+          },
+        });
+        return () => storySection.classList.remove('is-guided');
       });
     }, pageRef);
-    return () => context.revert();
+    return () => {
+      revertStoryMedia();
+      context.revert();
+    };
   }, [reducedMotion]);
 
   const updateCaseHistory = (
@@ -500,134 +516,190 @@ function App() {
     <div className="site-shell" ref={pageRef}>
       <header className="site-header">
         <a className="wordmark" href="#top" aria-label="ScamShield home">
-          <span className="wordmark-mark" aria-hidden="true"><i /><i /><i /></span>
-          <span>SCAMSHIELD<span className="wordmark-period">.</span></span>
+          <BrandLockup />
         </a>
-        <nav className="top-nav" aria-label="Main navigation">
-          <a href="#approach">Approach</a>
-          <a href="#capabilities">Capabilities</a>
-          <a href="#analyzer">Analyzer</a>
+        <nav className={`top-nav${isMenuOpen ? ' is-open' : ''}`} id="main-navigation" aria-label="Main navigation">
+          <a href="#approach" onClick={() => setIsMenuOpen(false)}>Scenarios</a>
+          <a href="#investigation" onClick={() => setIsMenuOpen(false)}>Investigation</a>
+          <a href="#capabilities" onClick={() => setIsMenuOpen(false)}>Capabilities</a>
+          <a href="#analyzer" onClick={() => setIsMenuOpen(false)}>Analyzer</a>
         </nav>
-        <button type="button" className="nav-cta" onClick={() => scrollToAnalyzer(lenisRef.current)}>
+        <button
+          type="button"
+          className="menu-toggle"
+          aria-label={isMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+          aria-expanded={isMenuOpen}
+          aria-controls="main-navigation"
+          onClick={() => setIsMenuOpen((isOpen) => !isOpen)}
+        >
+          <span /><span />
+        </button>
+        <button type="button" className="nav-cta" onClick={() => { setIsMenuOpen(false); scrollToAnalyzer(lenisRef.current); }}>
           Analyze a message <span aria-hidden="true">↗</span>
         </button>
       </header>
 
       <main id="top">
-        <section className="hero" aria-labelledby="hero-title">
+        <section className="hero hero-cinematic" aria-labelledby="hero-title">
           <div className="hero-atmosphere" aria-hidden="true" />
+          <div className="hero-grain" aria-hidden="true" />
           <div className="hero-grid">
             <div className="hero-copy">
-              <p className="eyebrow"><span className="eyebrow-dot" /> PERSONAL THREAT INSPECTION</p>
-              <h1 id="hero-title"><span>Trust nothing.</span><br /><em>Verify everything.</em></h1>
+              <p className="eyebrow"><span className="eyebrow-dot" /> A MOMENT BEFORE THE CLICK</p>
+              <h1 id="hero-title"><span>It looks</span><br /><em>like someone</em><br /><span>you know.</span></h1>
               <p className="hero-intro">
-                A message can sound right and still lead somewhere wrong. Slow it down, inspect the signals, and decide with more context.
+                A familiar name. A sudden deadline. A link that leads somewhere else. Take a closer look before you answer.
               </p>
               <div className="hero-actions">
                 <button type="button" className="button-primary" onClick={() => scrollToAnalyzer(lenisRef.current)}>
-                  Analyze a message <span aria-hidden="true">↓</span>
+                  Inspect a message <span aria-hidden="true">↓</span>
                 </button>
-                <a className="text-link" href="#approach">See how it works <span aria-hidden="true">↘</span></a>
+                <a className="text-link" href="#approach">Enter the story <span aria-hidden="true">↘</span></a>
               </div>
               <div className="hero-footnote">
                 <span className="status-ring" aria-hidden="true" />
-                <span>Private by default. No live link checking.</span>
+                <span>URLs are inspected passively, never opened.</span>
               </div>
             </div>
-            <div className="hero-visual" aria-label="An abstract shield scans a suspicious signal">
+            <div className="hero-visual" role="img" aria-label="A shield framed by an illustrative suspicious message">
               {!reducedMotion && (
                 <Suspense fallback={<div className="scene-placeholder" aria-hidden="true" />}>
                   <HeroScene />
                 </Suspense>
               )}
-              {reducedMotion && <div className="static-shield" aria-hidden="true"><span>◇</span></div>}
-              <div className="visual-coordinate coordinate-top">SIGNAL / 01</div>
-              <div className="visual-coordinate coordinate-bottom">INSPECT BEFORE YOU ACT</div>
-              <div className="visual-crosshair" aria-hidden="true">+</div>
-            </div>
-          </div>
-          <div className="hero-index"><span>01 / 04</span><span>MESSAGE · DOMAIN · CONTEXT</span></div>
-        </section>
-
-        <section className="story-section" id="approach" aria-labelledby="story-title">
-          <div className="story-stage">
-            <div className="story-intro">
-              <p className="eyebrow"><span className="eyebrow-number">01</span> THE MOMENT BEFORE THE CLICK</p>
-              <h2 id="story-title" aria-label="A suspicious message. Three signals. One clearer decision.">
-                <span className="story-word">A suspicious</span>
-                <span className="story-word">message.</span>
-                <span className="story-word story-accent">Three signals.</span>
-              </h2>
-            </div>
-            <div className="story-process" aria-label="Illustrative analysis process">
-              <svg className="story-map" viewBox="0 0 500 480" aria-hidden="true">
-                <path className="story-map-path" d="M45 90 168 132 240 66 354 142 440 91M168 132l52 125 134-40 86 112M220 257l-88 126 172-15 136-109" />
-                <path className="story-map-path story-map-path-accent" d="m240 66 14 191 134 55M45 90l87 293" />
-                <circle className="story-map-node" cx="45" cy="90" r="4" />
-                <circle className="story-map-node" cx="168" cy="132" r="5" />
-                <circle className="story-map-node story-map-node-accent" cx="240" cy="66" r="6" />
-                <circle className="story-map-node" cx="354" cy="142" r="4" />
-                <circle className="story-map-node story-map-node-accent" cx="220" cy="257" r="6" />
-                <circle className="story-map-node" cx="354" cy="217" r="4" />
-                <circle className="story-map-node" cx="440" cy="91" r="4" />
-                <circle className="story-map-node" cx="132" cy="383" r="4" />
-                <circle className="story-map-node story-map-node-accent" cx="304" cy="368" r="5" />
-                <circle className="story-map-node" cx="440" cy="329" r="4" />
-              </svg>
-              <div className="story-step" data-step="1">
-                <span className="step-number">01</span>
-                <div><h3>Read the request</h3><p>What is the message asking you to do?</p></div>
-              </div>
-              <div className="story-signal" aria-hidden="true"><span /></div>
-              <div className="story-step" data-step="2">
-                <span className="step-number">02</span>
-                <div><h3>Inspect the structure</h3><p>Does the URL reveal the destination it implies?</p></div>
-              </div>
-              <div className="story-signal" aria-hidden="true"><span /></div>
-              <div className="story-step" data-step="3">
-                <span className="step-number">03</span>
-                <div><h3>Make a clearer decision</h3><p>Review returned signals. Verify through a channel you trust.</p></div>
-              </div>
-              <div className="story-evidence" aria-label="Illustrative evidence example">
-                <div className="evidence-label"><span /> ILLUSTRATIVE SIGNAL</div>
-                <p>Account access pressure</p>
-                <small>One observed pattern — not proof of fraud.</small>
-              </div>
-            </div>
-            <div className="story-index">A PROCESS, NOT A PROMISE <span>02 — 04</span></div>
-          </div>
-        </section>
-
-        <section className="preview-section" aria-labelledby="preview-title">
-          <div className="section-heading" data-reveal>
-            <p className="eyebrow"><span className="eyebrow-number">02</span> EXPLAINABLE BY DESIGN</p>
-            <h2 id="preview-title">See the signal.<br /><em>Keep your judgment.</em></h2>
-            <p>Results show the patterns returned by the analysis—not a verdict, guarantee, or live reputation check.</p>
-          </div>
-          <div className="preview-frame" data-reveal>
-            <div className="preview-topbar">
-              <div className="window-dots" aria-hidden="true"><i /><i /><i /></div>
-              <span>SCAMSHIELD / INVESTIGATION VIEW</span>
-              <span className="preview-live"><i /> INTERFACE PREVIEW</span>
-            </div>
-            <div className="preview-content">
-              <div className="preview-input">
-                <p className="preview-kicker">ILLUSTRATIVE MESSAGE</p>
-                <p className="preview-message">“Your account needs attention. Sign in to review your security settings.”</p>
-                <div className="preview-url"><span>↗</span> account-review.example.test</div>
-                <p className="preview-disclaimer">Example content for interface illustration only. Not a live scan or actual analysis result.</p>
-              </div>
-              <div className="preview-result">
-                <div className="preview-result-head">
-                  <div><span className="preview-kicker">OBSERVED PATTERN</span><h3>Pressure to verify</h3></div>
-                  <span className="preview-evidence-mark">01</span>
+              {reducedMotion && (
+                <div className="static-shield" aria-hidden="true">
+                  <img src="/scamshield-mark.svg" alt="" />
                 </div>
-                <p>This example demonstrates how a returned indicator can be explained in plain language. The analyzer does not confirm a sender’s identity.</p>
-                <div className="preview-rule"><span /> VERIFY THROUGH A CHANNEL YOU ALREADY TRUST</div>
+              )}
+              <div className="hero-orbit-label">01 / THE INTERRUPTION</div>
+              <div className="hero-signal-card" aria-label="Illustrative bank alert scenario">
+                <div className="signal-card-top"><span className="signal-bank-mark">N</span><span>NOTICE / SAMPLE</span><span>09:41</span></div>
+                <p>Unusual activity detected. Confirm your account now to avoid a temporary hold.</p>
+                <div className="signal-card-url"><span>northstar-secure.example</span><i aria-hidden="true">↗</i></div>
+                <small>ILLUSTRATIVE MESSAGE — NOT A LIVE ALERT</small>
               </div>
+              <div className="hero-coordinate">SCAMSHIELD / FIELD NOTES 001</div>
             </div>
           </div>
-          <p className="preview-caption" data-reveal><span>FIG. 01</span> The product view is illustrative; only analysis submitted through the live analyzer produces a case result.</p>
+          <a className="hero-scroll-cue" href="#approach"><span>SCROLL TO FOLLOW THE SIGNAL</span><i aria-hidden="true" /></a>
+        </section>
+
+        <section className="story-section" id="approach" aria-label="Three illustrative scam scenarios">
+          <div className="story-track-frame">
+            <div className="story-track">
+              <article className="scenario-panel scenario-bank" aria-labelledby="scenario-bank-title">
+                <div className="scenario-copy">
+                  <p className="eyebrow"><span>01</span> THE MESSAGE THAT CAN'T WAIT</p>
+                  <h2 id="scenario-bank-title">A bank alert.<br /><em>A borrowed sense of urgency.</em></h2>
+                  <p>A message may use a familiar institution and a short deadline to push you into acting before you verify who sent it.</p>
+                  <div className="scenario-takeaway"><span>LOOK CLOSER</span><strong>Urgency is a reason to pause—not a reason to rush.</strong></div>
+                </div>
+                <div className="scenario-art bank-art" aria-label="Illustrative phone message with an unverified account warning">
+                  <div className="scenario-art-label">RECREATED MESSAGE / 01</div>
+                  <div className="phone-shell">
+                    <div className="phone-top"><span>9:41</span><span>•••</span></div>
+                    <div className="message-thread-head"><span className="bank-avatar">N</span><span><strong>Northstar Bank</strong><small>Possible sender name</small></span><i>›</i></div>
+                    <div className="message-bubble">
+                      <p>We noticed a problem with your account. <mark>Confirm your details today</mark> or access may be paused.</p>
+                      <span className="message-link">northstar-secure.example</span>
+                    </div>
+                    <span className="scenario-stamp">ILLUSTRATIVE</span>
+                  </div>
+                  <div className="art-note"><span>01</span> The displayed sender name alone does not verify identity.</div>
+                </div>
+              </article>
+
+              <article className="scenario-panel scenario-email" aria-labelledby="scenario-email-title">
+                <div className="scenario-copy">
+                  <p className="eyebrow"><span>02</span> THE LINK THAT LOOKS CLOSE ENOUGH</p>
+                  <h2 id="scenario-email-title">A familiar brand.<br /><em>An unfamiliar destination.</em></h2>
+                  <p>Look past the display name. The address itself may reveal a different host, an odd subdomain, or a link that hides its destination.</p>
+                  <div className="scenario-takeaway"><span>LOOK CLOSER</span><strong>Read the domain before you follow the link.</strong></div>
+                </div>
+                <div className="scenario-art email-art" aria-label="Illustrative phishing email with a mismatched sender and destination">
+                  <div className="scenario-art-label">RECREATED EMAIL / 02</div>
+                  <div className="mail-window">
+                    <div className="mail-toolbar"><span /><span /><span /><i>INBOX / 01</i></div>
+                    <div className="mail-content">
+                      <p className="mail-subject">Your shared document is ready</p>
+                      <div className="mail-sender"><span className="sender-avatar">D</span><div><strong>Drive Support</strong><small>From: notify@drive-access.review.example</small></div></div>
+                      <p>A document was shared with you. Sign in to review the file and confirm access.</p>
+                      <div className="mail-cta">OPEN SHARED FILE <span>↗</span></div>
+                      <div className="mail-destination"><span>LINK PREVIEW</span><strong>drive-access.review.example</strong><small>Not verified by this illustration</small></div>
+                    </div>
+                    <span className="scenario-stamp">ILLUSTRATIVE</span>
+                  </div>
+                  <div className="art-note"><span>02</span> Display names and link previews are not proof of legitimacy.</div>
+                </div>
+              </article>
+
+              <article className="scenario-panel scenario-payment" aria-labelledby="scenario-payment-title">
+                <div className="scenario-copy">
+                  <p className="eyebrow"><span>03</span> THE REQUEST THAT SHOULD STAY SECRET</p>
+                  <h2 id="scenario-payment-title">A trusted voice.<br /><em>An unusual payment.</em></h2>
+                  <p>Impersonation can turn familiarity into pressure. Unexpected transfers, gift cards, or secrecy deserve independent confirmation.</p>
+                  <div className="scenario-takeaway"><span>LOOK CLOSER</span><strong>Verify out-of-pattern requests using a known number.</strong></div>
+                </div>
+                <div className="scenario-art payment-art" aria-label="Illustrative chat requesting an unusual payment">
+                  <div className="scenario-art-label">RECREATED CHAT / 03</div>
+                  <div className="chat-window">
+                    <div className="chat-header"><span className="chat-avatar">JM</span><span><strong>Jordan M.</strong><small>Work chat · unverified</small></span><i>•••</i></div>
+                    <div className="chat-day">TODAY / 10:18 AM</div>
+                    <div className="chat-bubble received">Can you help me with something quickly?</div>
+                    <div className="chat-bubble received">I'm tied up. <mark>Please keep this between us</mark> and pick up a few gift cards.</div>
+                    <div className="chat-bubble sent">I'll call you on the number I already have.</div>
+                    <div className="chat-warning"><span>!</span> Unexpected payment + secrecy = verify first.</div>
+                    <span className="scenario-stamp">ILLUSTRATIVE</span>
+                  </div>
+                  <div className="art-note"><span>03</span> Confirm the request through a separate trusted channel.</div>
+                </div>
+              </article>
+            </div>
+            <div className="story-progress" aria-hidden="true"><span className="story-progress-fill" /></div>
+            <div className="story-progress-label"><span>THREE MOMENTS TO PAUSE</span><span>01 — 03</span></div>
+          </div>
+        </section>
+
+        <section className="investigation-section" id="investigation" aria-labelledby="investigation-title">
+          <div className="investigation-intro" data-reveal>
+            <p className="eyebrow"><span>THE SIGNAL BENEATH THE STORY</span></p>
+            <h2 id="investigation-title">Take the message<br />apart. <em>Not the truth.</em></h2>
+            <p>Here, one invented message is annotated to show the kinds of details worth checking. These highlights are a visual explanation—not a live scan or result.</p>
+          </div>
+          <div className="investigation-scene" data-reveal>
+            <div className="investigation-paper">
+              <div className="paper-label"><span>CASE STUDY / RECREATED</span><span>NOT A LIVE ANALYSIS</span></div>
+              <p className="paper-from">From: Northstar Account Team &lt;notice@northstar-account.example&gt;</p>
+              <h3>Immediate action required</h3>
+              <p>Your account access has been restricted. <mark className="mark-urgency">Confirm your details today</mark> to avoid further interruption.</p>
+              <div className="paper-link"><span>REVIEW ACCOUNT</span><strong>northstar-secure.example</strong><i aria-hidden="true">↗</i></div>
+              <div className="paper-footer">This message is a fictional example created for the page.</div>
+            </div>
+            <div className="signal-notes">
+              <div className="signal-note"><span className="signal-note-index">01</span><div><strong>A name can be copied</strong><p>A familiar sender label does not authenticate the sender.</p></div></div>
+              <div className="signal-note"><span className="signal-note-index">02</span><div><strong>Pressure narrows attention</strong><p>A deadline can make a routine check feel urgent.</p></div></div>
+              <div className="signal-note"><span className="signal-note-index">03</span><div><strong>The destination deserves a second look</strong><p>Read the visible host carefully. This example does not open or resolve it.</p></div></div>
+            </div>
+          </div>
+          <div className="investigation-thread" aria-hidden="true"><span /></div>
+        </section>
+
+        <section className="assessment-section" aria-labelledby="assessment-title">
+          <div className="assessment-copy" data-reveal>
+            <p className="eyebrow"><span>FROM SIGNALS TO A CLEARER VIEW</span></p>
+            <h2 id="assessment-title">A useful result<br />shows its <em>working.</em></h2>
+            <p>ScamShield returns a risk level, a triage score, observed indicators, and a recommendation. Treat them as context—not proof or a guarantee.</p>
+            <p className="assessment-disclaimer">Interface structure only. No score, risk level, or indicators are being generated in this illustration.</p>
+          </div>
+          <div className="assessment-board" data-reveal aria-label="Illustration of the fields in an analysis report, with no sample result values">
+            <div className="assessment-board-head"><span>ANALYSIS OUTPUT</span><span>VALUES ONLY AFTER SUBMISSION</span></div>
+            <div className="assessment-row"><span>01</span><div><small>RISK LEVEL</small><strong>Returned by the analyzer</strong></div><i>—</i></div>
+            <div className="assessment-row"><span>02</span><div><small>RISK SCORE</small><strong>Returned by the analyzer · not a probability</strong></div><i>—</i></div>
+            <div className="assessment-row"><span>03</span><div><small>EVIDENCE</small><strong>Indicators provided by the response</strong></div><i>—</i></div>
+            <div className="assessment-row"><span>04</span><div><small>RECOMMENDATION</small><strong>Next step provided by the response</strong></div><i>—</i></div>
+            <div className="assessment-foot"><span className="status-ring" /> No result is shown until you submit a message or URL.</div>
+          </div>
         </section>
 
         <section className="capabilities-section" id="capabilities" aria-labelledby="capabilities-title">
@@ -670,7 +742,7 @@ function App() {
             <p>Analysis uses local rules unless Nebius inference is explicitly configured on the backend. Submitted data is not sent to report-generation services.</p>
             <div className="analyzer-note"><span className="status-ring" /> URLs are inspected passively. They are never opened here.</div>
           </div>
-          <div className="analyzer-workspace">
+          <div className="analyzer-workspace" aria-busy={isLoading}>
             <div className="analyzer-bar"><span>SCAMSHIELD / ANALYZER</span><span>PRIVATE SESSION <i /></span></div>
             <form className="analysis-form" onSubmit={handleAnalyze}>
               <div className="input-group">
@@ -811,7 +883,7 @@ function App() {
       </main>
 
       <footer className="site-footer">
-        <a className="wordmark" href="#top"><span className="wordmark-mark" aria-hidden="true"><i /><i /><i /></span><span>SCAMSHIELD<span className="wordmark-period">.</span></span></a>
+        <a className="wordmark" href="#top" aria-label="ScamShield home"><BrandLockup /></a>
         <p>Analysis can be wrong or incomplete. Signals are not proof. Verify important requests independently.</p>
         <a href="#top" className="footer-top">BACK TO TOP ↑</a>
       </footer>
